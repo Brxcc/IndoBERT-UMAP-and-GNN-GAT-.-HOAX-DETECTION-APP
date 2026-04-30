@@ -1,0 +1,15 @@
+INFO:     Will watch for changes in these directories: ['C:\\PPL(21-04)\\backend']
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [9272] using WatchFiles
+INFO:     Started server process [12600]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]Loading weights: 100%|##########| 199/199 [00:00<00:00, 22869.45it/s]
+C:\PPL(21-04)\backend\venv\Lib\site-packages\umap\umap_.py:1952: UserWarning: n_jobs value 1 overridden to 1 by setting random_state. Use no seed for parallelism.
+  warn(
+WARNING:  WatchFiles detected changes in 'ml_core\training_engine.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [12600]
