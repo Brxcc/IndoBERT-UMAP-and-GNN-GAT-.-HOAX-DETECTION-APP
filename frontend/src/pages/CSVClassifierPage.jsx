@@ -11,8 +11,8 @@ export function CSVClassifierPage() {
   const [step, setStep] = useState(0);
 
   const steps = [
-    "Preprocessing Teks",
-    "Embedding dengan IndoBERT",
+    "Text Preprocessing",
+    "Embedding with IndoBERT",
     "Graph Construction (Similarity)",
     "Hybrid Fusion & Inference",
   ];
@@ -33,9 +33,9 @@ export function CSVClassifierPage() {
         setLoading(false);
         // Mock results after processing
         setResults([
-          { id: 1, text: "Dana BOS tahun 2024 dinaikkan 500% oleh Mendikbud, kepala sekolah bisa beli mobil dinas", label: "Hoaks", probability: 0.98 },
-          { id: 2, text: "Pemerintah luncurkan juknis BOS kinerja tahun ini untuk sekolah penggerak", label: "Fakta", probability: 0.05 },
-          { id: 3, text: "Awas! Anggaran sekolah negeri akan dihapus mulai bulan depan", label: "Hoaks", probability: 0.96 },
+          { id: 1, text: "BOS funds in 2024 increased by 500% by the Minister, principals can buy official cars", label: "Hoax", probability: 0.98 },
+          { id: 2, text: "Government launches BOS performance technical guidelines this year for pioneering schools", label: "Fact", probability: 0.05 },
+          { id: 3, text: "Warning! Public school budgets will be abolished starting next month", label: "Hoax", probability: 0.96 },
         ]);
       }
     }, 800);
@@ -43,14 +43,14 @@ export function CSVClassifierPage() {
 
   const columns = [
     { header: "ID", accessor: "id" },
-    { header: "Teks Berita", accessor: "text" },
+    { header: "News Text", accessor: "text" },
     { 
-      header: "Prediksi", 
+      header: "Prediction", 
       accessor: "label",
       cell: (item) => (
         <span className={cn(
           "px-3 py-1 rounded-full text-xs font-semibold",
-          item.label === "Hoaks" ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"
+          item.label === "Hoax" ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"
         )}>
           {item.label}
         </span>
@@ -67,7 +67,7 @@ export function CSVClassifierPage() {
     <div className="max-w-4xl mx-auto space-y-8">
       <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-200">
         <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-3">
-          <FileType className="text-blue-600 w-6 h-6" /> Batch Klasifikasi CSV
+          <FileType className="text-blue-600 w-6 h-6" /> Batch CSV Classification
         </h3>
         
         <FileUploader file={file} onFileSelect={setFile} />
@@ -88,7 +88,7 @@ export function CSVClassifierPage() {
             ) : (
               <Play className="w-5 h-5" />
             )}
-            {loading ? "Memproses Data..." : "Jalankan Model"}
+            {loading ? "Processing Data..." : "Run Model"}
           </button>
         </div>
       </div>
@@ -123,10 +123,10 @@ export function CSVClassifierPage() {
           <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between">
             <h4 className="font-bold text-lg flex items-center gap-3">
               <Database className="w-5 h-5 text-blue-500" />
-              Hasil Klasifikasi
+              Classification Results
             </h4>
             <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">
-              {results.length} Baris Diproses
+              {results.length} Rows Processed
             </span>
           </div>
           <Table items={results} columns={columns} />

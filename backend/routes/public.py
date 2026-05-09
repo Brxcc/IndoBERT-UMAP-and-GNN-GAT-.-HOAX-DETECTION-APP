@@ -22,10 +22,10 @@ def predict_hoax(request: schemas.SearchRequest, db: Session = Depends(get_db)):
             paragraphs = soup.find_all('p')
             extracted = " ".join([p.get_text() for p in paragraphs])
             if not extracted.strip():
-                raise HTTPException(status_code=400, detail="Tidak ada teks yang dapat diekstrak dari URL tersebut.")
+                raise HTTPException(status_code=400, detail="No text could be extracted from this URL.")
             text_to_process = extracted[:1000] # Limiting size for DB & ML
         except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Gagal memproses URL: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"Failed to process URL: {str(e)}")
             
     # --- Integration Point: ML Core ---
     # In a fully deployed mode, we'd load the PyTorch geometric model and run inference with padding.
@@ -33,7 +33,7 @@ def predict_hoax(request: schemas.SearchRequest, db: Session = Depends(get_db)):
     # Here we simulate but provide credible metrics.
     is_hoax = random.random() > 0.5
     prob = round(random.uniform(0.75, 0.99) if is_hoax else random.uniform(0.01, 0.25), 2)
-    label = "Hoaks" if is_hoax else "Fakta"
+    label = "Hoax" if is_hoax else "Fact"
     
     # Save History
     db_history = models.SearchHistory(
@@ -51,3 +51,20 @@ def predict_hoax(request: schemas.SearchRequest, db: Session = Depends(get_db)):
 @router.get("/history", response_model=list[schemas.SearchResponse])
 def get_public_history(db: Session = Depends(get_db), limit: int = 50):
     return db.query(models.SearchHistory).order_by(models.SearchHistory.timestamp.desc()).limit(limit).all()
+
+@router.delete("/history/{history_id}")
+def delete_history_item(history_id: int, db: Session = Depends(get_db)):
+    """Delete a single history entry by ID."""
+    item = db.query(models.SearchHistory).filter(models.SearchHistory.id == history_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="History entry not found.")
+    db.delete(item)
+    db.commit()
+    return {"message": "History entry deleted successfully."}
+
+@router.delete("/history")
+def clear_all_history(db: Session = Depends(get_db)):
+    """Delete all public search history."""
+    deleted = db.query(models.SearchHistory).delete()
+    db.commit()
+    return {"message": f"{deleted} history entries deleted successfully."}

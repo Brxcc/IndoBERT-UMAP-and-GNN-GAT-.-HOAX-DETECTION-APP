@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Loader2 } from "lucide-react";
+import { Search, Loader2, Trash2 } from "lucide-react";
 import { Table } from "../components/Table";
 import { cn } from "../lib/utils";
 
@@ -25,6 +25,28 @@ export function PublicHomePage() {
     }
   };
 
+  const clearHistory = async () => {
+    if (!window.confirm("Clear all search history? This action cannot be undone.")) return;
+    try {
+      const res = await fetch(`${API_URL}/history`, { method: "DELETE" });
+      if (res.ok) {
+        setHistory([]);
+        setResult(null);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const deleteHistoryItem = async (id) => {
+    try {
+      const res = await fetch(`${API_URL}/history/${id}`, { method: "DELETE" });
+      if (res.ok) setHistory((prev) => prev.filter((h) => h.id !== id));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     fetchHistory();
   }, []);
@@ -32,7 +54,7 @@ export function PublicHomePage() {
   const handlePredict = async (e) => {
     e.preventDefault();
     if (!inputText.trim()) return;
-    
+
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}/predict`, {
@@ -56,13 +78,13 @@ export function PublicHomePage() {
   };
 
   const columns = [
-    { 
-      header: "Text / URL", 
+    {
+      header: "Text / URL",
       accessor: "input_text",
       cell: (item) => <div className="max-w-md truncate" title={item.input_text}>{item.input_text}</div>
     },
-    { 
-      header: "Type", 
+    {
+      header: "Type",
       accessor: "is_url",
       cell: (item) => (
         <span className="px-2 py-1 bg-slate-100 rounded text-xs">
@@ -70,8 +92,8 @@ export function PublicHomePage() {
         </span>
       )
     },
-    { 
-      header: "Prediction", 
+    {
+      header: "Prediction",
       accessor: "prediction",
       cell: (item) => (
         <span className={cn(
@@ -82,10 +104,23 @@ export function PublicHomePage() {
         </span>
       )
     },
-    { 
-      header: "Probability", 
+    {
+      header: "Probability",
       accessor: "probability",
       cell: (item) => `${(item.probability * 100).toFixed(1)}%`
+    },
+    {
+      header: "",
+      accessor: "id",
+      cell: (item) => (
+        <button
+          onClick={() => deleteHistoryItem(item.id)}
+          className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+          title="Delete this entry"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      )
     },
   ];
 
@@ -99,9 +134,9 @@ export function PublicHomePage() {
 
       <main className="max-w-5xl mx-auto px-6 py-12 space-y-12">
         <div className="text-center space-y-4">
-          <h2 className="text-4xl font-extrabold text-slate-800 tracking-tight">Check News Authenticity</h2>
+          <h2 className="text-4xl font-extrabold text-slate-800 tracking-tight">Hoax Detection App</h2>
           <p className="text-lg text-slate-500 max-w-2xl mx-auto">
-            Insert news text or a news URL to verify its authenticity using Machine Learning (GNN) technology.
+            Insert news text or a news URL to verify its authenticity using Machine Learning IndoBERT and Graph Neural Network.
           </p>
         </div>
 
@@ -110,19 +145,19 @@ export function PublicHomePage() {
           <form onSubmit={handlePredict} className="space-y-6">
             <div className="flex gap-4 mb-4">
               <label className="flex items-center gap-2 cursor-pointer">
-                <input 
-                  type="radio" 
-                  checked={!isUrl} 
-                  onChange={() => setIsUrl(false)} 
+                <input
+                  type="radio"
+                  checked={!isUrl}
+                  onChange={() => setIsUrl(false)}
                   className="w-4 h-4 text-blue-600"
                 />
                 <span className="text-sm font-medium text-slate-700">News Text</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
-                <input 
-                  type="radio" 
-                  checked={isUrl} 
-                  onChange={() => setIsUrl(true)} 
+                <input
+                  type="radio"
+                  checked={isUrl}
+                  onChange={() => setIsUrl(true)}
                   className="w-4 h-4 text-blue-600"
                 />
                 <span className="text-sm font-medium text-slate-700">From Link (URL)</span>
@@ -164,9 +199,9 @@ export function PublicHomePage() {
               ) : (
                 <div />
               )}
-              
-              <button 
-                type="submit" 
+
+              <button
+                type="submit"
                 disabled={loading || !inputText.trim()}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-md"
               >
@@ -179,12 +214,32 @@ export function PublicHomePage() {
 
         {/* History Table */}
         <div className="space-y-4">
-          <h3 className="text-xl font-bold text-slate-800">Public Search History</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-bold text-slate-800">Search History</h3>
+            {history.length > 0 && (
+              <button
+                onClick={clearHistory}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition"
+              >
+                <Trash2 className="w-4 h-4" />
+                Clear All History
+              </button>
+            )}
+          </div>
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <Table items={history} columns={columns} />
+            {history.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 text-sm">No search history yet.</div>
+            ) : (
+              <Table items={history} columns={columns} />
+            )}
           </div>
         </div>
       </main>
+
+      {/* Footer Copyright */}
+      <footer className="border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-400 select-none">
+        © GROUP 11 — AntiHOAX Detection App. All rights reserved.
+      </footer>
     </div>
   );
 }

@@ -56,8 +56,8 @@ export function LoginPage() {
           <div className="space-y-4">
             <div>
               <label className="text-sm font-semibold text-slate-700 block mb-2">Username</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -65,8 +65,8 @@ export function LoginPage() {
             </div>
             <div>
               <label className="text-sm font-semibold text-slate-700 block mb-2">Password</label>
-              <input 
-                type="password" 
+              <input
+                type="password"
                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from torch_geometric.data import Data
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score,
-    f1_score, matthews_corrcoef, roc_auc_score
+    f1_score, matthews_corrcoef, roc_auc_score, confusion_matrix
 )
 from sklearn.model_selection import StratifiedKFold
 from sklearn.neighbors import NearestNeighbors
@@ -14,8 +14,8 @@ from ml_core.gat_network import ContentGraphGAT
 import numpy as np
 import os
 import copy
-import json
 import random
+
 
 
 MODELS_DIR = "ml_models"
@@ -73,8 +73,11 @@ def construct_graph(embeddings: np.ndarray, k_neighbors: int = 10, method: str =
 # --- Metrics Computation ------------------------------------------------------
 def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray, y_prob: np.ndarray = None) -> dict:
     if len(y_true) == 0:
-        return {"akurasi": 0, "presisi": 0, "recall": 0, "f1": 0, "mcc": 0,
-                "macro_average": 0, "weighted_average": 0, "roc_auc": 0, "mean_std": 0.0}
+        return {
+            "akurasi": 0, "presisi": 0, "recall": 0, "f1": 0, "mcc": 0,
+            "macro_average": 0, "weighted_average": 0, "roc_auc": 0, "mean_std": 0.0,
+            "cm_tp": 0, "cm_tn": 0, "cm_fp": 0, "cm_fn": 0,
+        }
 
     multi = len(np.unique(y_true)) > 1
     acc   = accuracy_score(y_true, y_pred)
@@ -99,6 +102,20 @@ def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray, y_prob: np.ndarray =
         prec = rec = f1 = f1_w = acc
         mcc = roc_auc = 0.0
 
+    # Compute confusion matrix values
+    cm_tp, cm_tn, cm_fp, cm_fn = 0, 0, 0, 0
+    try:
+        cm = confusion_matrix(y_true, y_pred)
+        if cm.shape == (2, 2):
+            cm_tn, cm_fp, cm_fn, cm_tp = cm.ravel()
+        elif cm.shape == (1, 1):
+            if len(y_true) > 0 and y_true[0] == 1:
+                cm_tp = int(cm[0, 0])
+            else:
+                cm_tn = int(cm[0, 0])
+    except Exception:
+        pass
+
     return {
         "akurasi": round(float(acc),  4),
         "presisi": round(float(prec), 4),
@@ -109,6 +126,10 @@ def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray, y_prob: np.ndarray =
         "weighted_average": round(float(f1_w), 4),
         "roc_auc": round(float(roc_auc), 4),
         "mean_std": 0.0,
+        "cm_tp": int(cm_tp),
+        "cm_tn": int(cm_tn),
+        "cm_fp": int(cm_fp),
+        "cm_fn": int(cm_fn),
     }
 
 
@@ -179,7 +200,7 @@ def train_model(
 ):
     """
     GAT training pipeline with Stratified K-Fold + all best practices
-    for >90% accuracy with anti-overfitting enforcement (≤7% gap).
+    for >90% accuracy with anti-overfitting enforcement (<=7% gap).
     """
     # -- 0. Set Global Seed ---------------------------------------------------
     seed = int(settings.get("random_seed", settings.get("umap_random_state", 42)))
@@ -397,6 +418,10 @@ def train_model(
                 "overfit_gap":   round(abs(train_metrics["f1"] - test_metrics["f1"]), 4),
                 "token_info":  f"Fold {fold+1}/{n_splits} . Ep {epoch}/{gat_epochs}",
                 "is_best":     False,
+                "cm_tp":       test_metrics.get("cm_tp", 0),
+                "cm_tn":       test_metrics.get("cm_tn", 0),
+                "cm_fp":       test_metrics.get("cm_fp", 0),
+                "cm_fn":       test_metrics.get("cm_fn", 0),
             }
             all_logs.append(log_entry)
             if job_id and training_jobs and job_id in training_jobs:
@@ -430,7 +455,7 @@ def train_model(
             overfit_analysis.append(f"F1 gap={gap*100:.1f}% — OVERFIT detected")
             overfit_analysis.append("Suggestions: increase dropout_rate, reduce gat_epochs, use larger dataset")
         else:
-            overfit_analysis.append(f"F1 gap={gap*100:.1f}% — Within acceptable range (≤7%)")
+            overfit_analysis.append(f"F1 gap={gap*100:.1f}% — Within acceptable range (<=7%)")
 
     global_best_metrics["overfit_analysis"] = overfit_analysis
 

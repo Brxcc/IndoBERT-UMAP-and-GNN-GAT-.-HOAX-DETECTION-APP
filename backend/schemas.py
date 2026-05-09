@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
+from typing import Optional, List
 from datetime import datetime
 
 
@@ -44,11 +44,13 @@ class DatasetInfo(BaseModel):
 
 class ProcessRequest(BaseModel):
     dataset_id: int
+    convert_slang: bool = False
+    remove_stopwords: bool = False
 
 
 class TrainingSettings(BaseModel):
     dataset_id: int
-    model_name: str = "Model Baru"
+    model_name: str = "New Model"
 
     # ── Algorithm Mode ────────────────────────────────────────────────
     # "indobert_only" | "indobert_umap" | "hybrid" (IndoBERT+UMAP+GAT)

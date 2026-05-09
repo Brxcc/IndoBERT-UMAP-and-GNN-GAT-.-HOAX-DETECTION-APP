@@ -1,0 +1,257 @@
+# BAB II: LANDASAN TEORI
+
+## 2.1 Teori Terkait
+
+### 2.1.1 Klasifikasi Teks
+
+Klasifikasi teks adalah proses pengelompokan dokumen teks ke dalam satu atau lebih kategori yang telah ditentukan secara otomatis menggunakan algoritma *machine learning*. Dalam konteks penelitian ini, klasifikasi dilakukan secara biner: sebuah berita diklasifikasikan sebagai **Fakta** (kelas 0) atau **Hoaks** (kelas 1). Proses klasifikasi teks umumnya terdiri dari tiga tahap utama: (1) ekstraksi fitur dari teks mentah, (2) pembelajaran pola diskriminatif oleh model, dan (3) prediksi label pada data baru [4].
+
+### 2.1.2 Berita Hoaks
+
+Berita hoaks (*hoax news*) didefinisikan sebagai informasi yang secara sengaja dibuat dan disebarluaskan dengan tujuan menyesatkan, menipu, atau memanipulasi pembaca [5]. Dalam konteks anggaran sekolah di Indonesia, berita hoaks seringkali mengangkat narasi negatif seperti klaim penyalahgunaan Dana BOS, pemangkasan anggaran yang tidak berdasar fakta, atau tuduhan korupsi yang tidak dapat diverifikasi. Ciri-ciri linguistik berita hoaks yang dapat dideteksi secara komputasional antara lain: penggunaan diksi yang provokatif, ketidakkonsistenan fakta internal, sumber yang tidak teridentifikasi, serta klaim yang tidak terdukung oleh bukti.
+
+### 2.1.3 Text Preprocessing
+
+*Text preprocessing* adalah serangkaian langkah transformasi yang diterapkan pada teks mentah sebelum diproses oleh model. Tahapan preprocessing yang diterapkan dalam sistem ini meliputi:
+
+- **Pembersihan Teks (*Text Cleaning*):** Menghapus karakter non-alfanumerik, tanda baca berlebihan, URL, dan karakter khusus yang tidak relevan secara semantik.
+- **Normalisasi Teks:** Mengkonversi seluruh teks ke huruf kecil (*lowercase*) dan menghapus spasi ganda.
+- **Penghapusan Baris Kosong (*Null Removal*):** Menghapus baris yang seluruh kolomnya kosong menggunakan fungsi `dropna()`.
+- **Stripping Whitespace:** Menghapus spasi di awal dan akhir setiap entri kolom teks.
+
+Dalam konteks sistem ini, preprocessing dilakukan oleh modul `/admin/preprocess` pada *backend*, yang membersihkan dataset CSV/Excel sebelum dimasukkan ke dalam pipeline embedding IndoBERT.
+
+### 2.1.4 IndoBERT
+
+IndoBERT adalah model bahasa (*language model*) pra-latih (*pretrained*) yang dikembangkan oleh Koto et al. (2020) berdasarkan arsitektur BERT (*Bidirectional Encoder Representations from Transformers*). BERT pertama kali diperkenalkan oleh Devlin et al. (2019) sebagai model yang menggunakan mekanisme *self-attention* dua arah (*bidirectional*) untuk memahami konteks setiap kata secara bersamaan dari kiri maupun kanan dalam sebuah kalimat [6].
+
+IndoBERT dilatih pada korpus bahasa Indonesia sebesar 4 GB yang bersumber dari Wikipedia bahasa Indonesia dan berbagai situs berita daring. Versi yang digunakan dalam penelitian ini adalah `indobenchmark/indobert-base-p2`, yang memiliki spesifikasi:
+
+- **Dimensi *Hidden Layer*:** 768 dimensi
+- **Jumlah *Attention Heads*:** 12
+- **Jumlah Layer Transformer:** 12
+- **Ukuran Vocabulary:** ±32.000 token
+
+Dalam sistem ini, IndoBERT digunakan sebagai **ekstraktor fitur** (*feature extractor*) dalam mode inferensi (`model.eval()`), bukan di-*fine-tune*. Setiap teks diubah menjadi vektor representasi 768-dimensi menggunakan tiga strategi *pooling*:
+
+- **CLS Pooling (default):** Mengambil representasi token `[CLS]` pada posisi pertama: $e = h_0$
+- **Mean Pooling:** Merata-ratakan semua token aktif (mengabaikan *padding*): $e = \frac{\sum_{i=1}^{n} h_i \cdot m_i}{\sum_{i=1}^{n} m_i}$
+- **Max Pooling:** Mengambil nilai maksimum per dimensi di antara semua token: $e_j = \max_{i=1}^{n}(h_{ij})$
+
+Di mana $h_i$ adalah representasi *hidden state* token ke-$i$, $m_i$ adalah nilai *attention mask* (1 untuk token nyata, 0 untuk *padding*), dan $n$ adalah jumlah total token.
+
+### 2.1.5 UMAP (Uniform Manifold Approximation and Projection)
+
+UMAP adalah algoritma reduksi dimensi non-linear yang diperkenalkan oleh McInnes et al. (2018). UMAP bekerja dengan membangun representasi *fuzzy topological* dari data berdimensi tinggi, kemudian mengoptimalkan representasi berdimensi rendah agar memiliki struktur topologi yang serupa [3].
+
+Dalam konteks penelitian ini, UMAP digunakan untuk mereduksi embedding IndoBERT dari 768 dimensi menjadi 64 dimensi (dapat dikonfigurasi), sebelum dimasukkan ke dalam GAT. Manfaat utama reduksi ini adalah:
+1. **Mengurangi biaya komputasi** pada tahap pembangunan dan pemrosesan graf GAT.
+2. **Menghilangkan fitur redundan** (*noise reduction*) dari ruang embedding berdimensi tinggi.
+3. **Mempertahankan struktur klaster** data, sehingga dokumen yang semantik serupa tetap berdekatan dalam ruang dimensi rendah.
+
+Parameter utama UMAP yang dapat dikonfigurasi dalam sistem:
+- `n_components`: jumlah dimensi output (default: 64)
+- `n_neighbors`: jumlah tetangga lokal yang dipertimbangkan (default: 15)
+- `min_dist`: jarak minimum antar titik dalam representasi 2D (default: 0.1)
+- `metric`: metrik jarak yang digunakan (default: "cosine")
+
+### 2.1.6 Graph Neural Network (GNN) dan Graph Attention Network (GAT)
+
+*Graph Neural Network* (GNN) adalah kelas model *deep learning* yang dirancang untuk belajar dari data yang direpresentasikan dalam struktur graf $G = (V, E)$, di mana $V$ adalah himpunan simpul (*nodes*) dan $E$ adalah himpunan sisi (*edges*) [7]. Dalam konteks deteksi hoaks, setiap dokumen berita direpresentasikan sebagai satu simpul, dan kemiripan antar dokumen membentuk sisi di antara mereka.
+
+**Graph Attention Network (GAT)** merupakan varian GNN yang diperkenalkan oleh Veličković et al. (2018), yang menambahkan mekanisme *attention* pada proses agregasi fitur dari simpul-simpul tetangga. Tidak seperti GCN (*Graph Convolutional Network*) yang memberikan bobot sama pada semua tetangga, GAT secara adaptif mempelajari bobot perhatian $\alpha_{ij}$ untuk setiap pasangan simpul $(i, j)$ [8].
+
+Koefisien *attention* dihitung sebagai:
+
+$$e_{ij} = \text{LeakyReLU}(\vec{a}^T [W\vec{h}_i \| W\vec{h}_j])$$
+
+$$\alpha_{ij} = \text{softmax}_j(e_{ij}) = \frac{\exp(e_{ij})}{\sum_{k \in \mathcal{N}(i)} \exp(e_{ik})}$$
+
+Di mana $W$ adalah matriks transformasi linear yang dapat dipelajari, $\vec{a}$ adalah vektor *attention*, $\vec{h}_i$ dan $\vec{h}_j$ adalah representasi fitur simpul $i$ dan $j$, $\|$ menandakan operasi konkatenasi, dan $\mathcal{N}(i)$ adalah himpunan tetangga simpul $i$.
+
+Representasi simpul baru dihitung sebagai:
+
+$$\vec{h}'_i = \sigma\left(\sum_{j \in \mathcal{N}(i)} \alpha_{ij} W \vec{h}_j\right)$$
+
+**Multi-head Attention** digunakan untuk menstabilkan proses pembelajaran:
+
+$$\vec{h}'_i = \|_{k=1}^{K} \sigma\left(\sum_{j \in \mathcal{N}(i)} \alpha_{ij}^k W^k \vec{h}_j\right)$$
+
+Arsitektur `ContentGraphGAT` yang diimplementasikan dalam sistem ini terdiri dari:
+- **Layer Input:** `GATConv(in_channels → hidden_channels × heads)` dengan *self-loops*
+- **BatchNorm1d:** Normalisasi batch setelah setiap *hidden layer* untuk stabilitas pelatihan
+- **Residual Connection:** Koneksi langsung (*skip connection*) dari input ke output layer pertama untuk mencegah *vanishing gradient*
+- **Layer Output:** `GATConv(hidden_channels × heads → num_classes)` dengan `heads=1, concat=False`
+- **Aktivasi Akhir:** `log_softmax` untuk kompatibilitas dengan *Negative Log-Likelihood Loss*
+
+### 2.1.7 KNN Graph Construction
+
+Konstruksi graf dalam sistem ini menggunakan metode *K-Nearest Neighbors* (KNN) berdasarkan metrik kemiripan kosinus. Untuk setiap dokumen $i$, sistem mencari $k$ dokumen terdekat berdasarkan kemiripan kosinus embedding UMAP-nya, kemudian membuat sisi bidireksional antara $i$ dan setiap tetangganya.
+
+**Kemiripan Kosinus:**
+$$\text{sim}(u, v) = \frac{u \cdot v}{\|u\| \|v\|}$$
+
+Di mana $u$ dan $v$ adalah vektor embedding dua dokumen. Nilai kemiripan berkisar dari -1 (berlawanan) hingga 1 (identik). Dua dokumen dihubungkan dengan sisi jika mereka termasuk dalam $k$ tetangga terdekat satu sama lain.
+
+### 2.1.8 Stratified K-Fold Cross Validation
+
+*Stratified K-Fold Cross Validation* adalah teknik evaluasi model yang membagi dataset menjadi $k$ lipatan (*folds*) sedemikian rupa sehingga setiap lipatan mempertahankan proporsi kelas yang sama dengan dataset asli. Dalam setiap iterasi, satu lipatan digunakan sebagai data uji dan $k-1$ lipatan sisanya sebagai data latih. Nilai default $k=5$ digunakan dalam sistem ini.
+
+Keunggulan *Stratified K-Fold* dibandingkan *K-Fold* biasa adalah kemampuannya menangani ketidakseimbangan kelas (*class imbalance*), yang merupakan kondisi umum dalam dataset berita hoaks di mana satu kategori mungkin jauh lebih banyak dari yang lain.
+
+### 2.1.9 Label Smoothing Loss
+
+*Label Smoothing* adalah teknik regularisasi yang diperkenalkan oleh Szegedy et al. (2016) untuk mencegah model menjadi terlalu percaya diri (*over-confident*) pada prediksinya. Alih-alih menggunakan label *one-hot* $y \in \{0, 1\}$, label diperhalus menjadi [8]:
+
+$$y'_k = (1 - \epsilon) \cdot y_k + \frac{\epsilon}{K}$$
+
+Di mana $\epsilon$ adalah faktor *smoothing* (nilai default: 0.1) dan $K$ adalah jumlah kelas. Dalam sistem ini, *Label Smoothing Loss* dikombinasikan dengan *class weighting* untuk menangani ketidakseimbangan kelas.
+
+### 2.1.10 Metrik Evaluasi
+
+Sistem mengukur performa model menggunakan sembilan metrik evaluasi yang ditampilkan di *Evaluation Board*:
+
+**Confusion Matrix** adalah tabel $2 \times 2$ yang merangkum hasil prediksi:
+
+| | Prediksi Positif | Prediksi Negatif |
+|---|---|---|
+| **Aktual Positif** | TP (*True Positive*) | FN (*False Negative*) |
+| **Aktual Negatif** | FP (*False Positive*) | TN (*True Negative*) |
+
+Dari *Confusion Matrix*, metrik berikut dihitung:
+
+$$\text{Accuracy} = \frac{TP + TN}{TP + TN + FP + FN}$$
+
+$$\text{Precision} = \frac{TP}{TP + FP}$$
+
+$$\text{Recall} = \frac{TP}{TP + FN}$$
+
+$$\text{F1-Score} = 2 \times \frac{\text{Precision} \times \text{Recall}}{\text{Precision} + \text{Recall}}$$
+
+$$\text{MCC} = \frac{TP \times TN - FP \times FN}{\sqrt{(TP+FP)(TP+FN)(TN+FP)(TN+FN)}}$$
+
+$$\text{ROC-AUC} = \int_0^1 \text{TPR}(t) \, d(\text{FPR}(t))$$
+
+$$\text{Mean Std} = \text{std}(F1_1, F1_2, \ldots, F1_k) \text{ (dari K-Fold)}$$
+
+**Macro Average F1:** rata-rata F1 dari setiap kelas tanpa mempertimbangkan ukuran kelas.  
+**Weighted Average F1:** rata-rata F1 yang dibobot berdasarkan jumlah sampel setiap kelas.
+
+---
+
+## 2.2 Teknologi Pendukung
+
+### 2.2.1 Python
+
+Python adalah bahasa pemrograman tingkat tinggi yang menjadi standar industri dalam pengembangan sistem *machine learning* dan *data science*. Dalam penelitian ini, Python (versi 3.10+) digunakan sebagai bahasa utama untuk seluruh komponen *backend* dan pipeline ML karena ekosistem library-nya yang kaya dan dukungan komunitas yang luas.
+
+### 2.2.2 FastAPI
+
+FastAPI adalah *web framework* Python modern untuk membangun API (*Application Programming Interface*) yang cepat dan efisien. FastAPI dipilih karena: (1) performa tinggi berbasis ASGI (*Asynchronous Server Gateway Interface*), (2) validasi data otomatis menggunakan Pydantic, (3) dokumentasi API interaktif otomatis (Swagger UI), dan (4) dukungan *background tasks* yang digunakan untuk menjalankan pelatihan model secara asinkron tanpa memblokir *request* lain.
+
+### 2.2.3 PyTorch
+
+PyTorch adalah *framework deep learning open-source* yang dikembangkan oleh Meta AI. Dalam sistem ini, PyTorch digunakan untuk: (1) mendefinisikan arsitektur model GAT melalui `torch.nn.Module`, (2) melakukan proses *forward pass* dan *backpropagation*, (3) mengimplementasikan optimizer AdamW dan *scheduler*, dan (4) menyimpan/memuat *checkpoint* model dalam format `.pt`.
+
+### 2.2.4 PyTorch Geometric (PyG)
+
+PyTorch Geometric adalah library PyTorch yang dikhususkan untuk pembelajaran pada data graf. Library ini menyediakan implementasi `GATConv` yang digunakan sebagai lapisan dasar model GAT dalam sistem ini, serta `Data` object untuk merepresentasikan graf (node features + edge index + labels).
+
+### 2.2.5 Hugging Face Transformers
+
+Library `transformers` dari Hugging Face digunakan untuk memuat model *pretrained* IndoBERT (`AutoTokenizer` dan `AutoModel`). Library ini menyediakan antarmuka yang konsisten untuk mengakses ribuan model pra-latih, termasuk IndoBERT dari `indobenchmark/indobert-base-p2`.
+
+### 2.2.6 UMAP-learn
+
+Library `umap-learn` menyediakan implementasi algoritma UMAP yang efisien. Dalam sistem, kelas `UMAPReducer` dibungkus di atas `umap.UMAP` dan mendukung metode `fit_transform()` (untuk pelatihan) serta `transform()` (untuk inferensi pada data baru).
+
+### 2.2.7 Scikit-learn
+
+Scikit-learn digunakan untuk: (1) `StratifiedKFold` dalam validasi silang, (2) `NearestNeighbors` dalam konstruksi graf KNN, (3) `StandardScaler` untuk normalisasi embedding, (4) `compute_class_weight` untuk menangani ketidakseimbangan kelas, dan (5) berbagai fungsi metrik evaluasi (`accuracy_score`, `f1_score`, `roc_auc_score`, `matthews_corrcoef`).
+
+### 2.2.8 SQLAlchemy & SQLite
+
+SQLAlchemy adalah ORM (*Object-Relational Mapping*) Python yang digunakan untuk mendefinisikan model basis data dan berinteraksi dengan SQLite. SQLite dipilih sebagai basis data karena kemudahan pengaturan (*zero-configuration*) dan kesesuaiannya untuk skala proyek penelitian.
+
+### 2.2.9 React (Vite)
+
+React adalah library JavaScript untuk membangun antarmuka pengguna berbasis komponen. Vite digunakan sebagai *build tool* karena kecepatan *Hot Module Replacement* (HMR)-nya. Frontend AntiHOAX dibangun menggunakan React dengan routing berbasis `react-router-dom`.
+
+### 2.2.10 Pandas
+
+Pandas digunakan untuk membaca, memproses, dan memanipulasi dataset dalam format CSV dan Excel. Fungsi `read_csv()` dan `read_excel()` dengan dukungan berbagai encoding (`utf-8`, `latin-1`, `cp1252`) memastikan kompatibilitas dengan berbagai format file yang diunggah pengguna.
+
+---
+
+## 2.3 Metodologi Pengembangan Perangkat Lunak
+
+### 2.3.1 Metode Prototyping
+
+Metode *Prototyping* adalah pendekatan pengembangan perangkat lunak yang menekankan pembuatan prototipe fungsional secara cepat sebagai dasar untuk iterasi dan penyempurnaan. Metode ini dipilih karena:
+1. Sifat penelitian yang bersifat eksploratif, terutama dalam penentuan arsitektur model dan parameter optimal.
+2. Kebutuhan untuk memvalidasi pipeline ML secara bertahap sebelum mengintegrasikannya ke dalam sistem penuh.
+3. Kemudahan adaptasi terhadap perubahan kebutuhan yang muncul selama proses pengembangan.
+
+Siklus Prototyping dalam penelitian ini meliputi:
+- **Tahap 1:** Prototipe pipeline ML dasar (IndoBERT → GAT) tanpa antarmuka
+- **Tahap 2:** Integrasi UMAP dan penambahan antarmuka admin dasar
+- **Tahap 3:** Penambahan fitur evaluasi lengkap (9 metrik), manajemen dataset, dan antarmuka publik
+- **Tahap 4:** Penambahan fitur ekspor Excel, pengujian massal, dan penyempurnaan antarmuka
+
+### 2.3.2 Kakas Pemodelan
+
+**Use Case Diagram** digunakan untuk memodelkan interaksi antara aktor (pengguna sistem) dengan fungsionalitas sistem. Notasi yang digunakan:
+
+| Simbol | Nama | Keterangan |
+|--------|------|------------|
+| ○─── | Aktor | Entitas yang berinteraksi dengan sistem |
+| ( ) | Use Case | Fungsionalitas yang disediakan sistem |
+| → | Association | Hubungan antara aktor dan use case |
+| ⊂ | Include | Use case yang selalu dipanggil oleh use case lain |
+| ⊃ | Extend | Use case yang dipanggil secara kondisional |
+
+**Class Diagram** digunakan untuk memodelkan struktur kelas, atribut, metode, dan relasi antar kelas dalam sistem. Relasi yang digunakan meliputi: asosiasi, komposisi, agregasi, dan dependensi.
+
+**Sequence Diagram** digunakan untuk memodelkan alur interaksi antar komponen sistem dalam urutan waktu untuk skenario-skenario tertentu.
+
+---
+
+## 2.4 Prosedur Pengumpulan dan Pengolahan Data
+
+### 2.4.1 Pengumpulan Data
+
+Dataset yang digunakan dalam penelitian ini dikumpulkan dari berbagai sumber terpercaya yang relevan dengan isu anggaran pendidikan di Indonesia:
+
+1. **Portal Verifikasi Berita:** TurnBackHoax.id dan Mafindo (Masyarakat Anti Fitnah Indonesia) sebagai sumber berita hoaks yang telah terverifikasi.
+2. **Situs Berita Resmi:** Kompas.com, Tempo.co, Kemdikbud.go.id sebagai sumber berita fakta terkait anggaran pendidikan.
+3. **Media Sosial:** Tangkapan layar dan arsip konten yang beredar di media sosial terkait Dana BOS dan anggaran sekolah.
+
+Teknik pengumpulan data menggunakan kombinasi:
+- ***Web Scraping*** berbasis BeautifulSoup untuk mengekstrak konten artikel dari URL.
+- **Pengumpulan Manual** untuk berita yang memerlukan verifikasi mendalam.
+- **Import Dataset Publik** dalam format CSV/Excel yang diunggah melalui fitur *Data Collector* pada sistem.
+
+### 2.4.2 Pengolahan Data
+
+Tahapan pengolahan data secara umum adalah:
+1. Validasi format file (CSV/Excel) dan deteksi encoding karakter.
+2. Deteksi otomatis kolom teks dan kolom label menggunakan kata kunci (*keyword matching*).
+3. Pembersihan data: penghapusan baris kosong, stripping whitespace, konversi tipe data.
+4. Pemetaan label: konversi label teks (mis. "hoaks", "fakta") ke label numerik (1, 0).
+5. Penyimpanan dataset terproses ke dalam direktori lokal dan pencatatan metadata ke basis data.
+
+---
+
+## 2.5 Penelitian Terkait
+
+**Tabel 2.1 Penelitian Terkait**
+
+| No | Peneliti & Tahun | Judul | Metode | Temuan | Perbedaan |
+|----|-----------------|-------|--------|--------|-----------|
+| 1 | Koto et al., 2020 | IndoBERT: A Pre-trained Language Model for Indonesian Language | BERT pretrained on Indonesian corpus | IndoBERT mencapai SOTA pada 5 tugas NLP bahasa Indonesia | Penelitian ini hanya mengembangkan model bahasa; tidak membangun sistem deteksi hoaks spesifik domain anggaran |
+| 2 | Yao et al., 2019 | Graph Convolutional Networks for Text Classification | TextGCN | GCN mencapai akurasi 86.3% pada 20Newsgroups, melampaui CNN dan LSTM | Tidak menggunakan BERT untuk embedding dan tidak menyasar bahasa Indonesia |
+| 3 | Popat et al., 2018 | DeClarE: Debunking Fake News and False Claims using Evidence-Aware Deep Learning | LSTM + Attention + External Evidence | DeClarE meningkatkan F1 sebesar 4% dibandingkan baseline dengan mengintegrasikan bukti eksternal | Memerlukan sumber bukti eksternal yang tidak selalu tersedia; tidak menggunakan GNN |
+| 4 | Jiang et al., 2020 | FANG: Leveraging Social Context for Fake News Detection Using Graph Representation | Graph Attention Network + Social Context | FANG meningkatkan akurasi 5-10% dibandingkan metode tanpa konteks sosial | Bergantung pada data sosial (pengguna, retweet) yang tidak tersedia untuk semua dataset; penelitian ini fokus pada konten teks murni |
+| 5 | Nasution et al., 2022 | Deteksi Berita Hoaks Berbahasa Indonesia Menggunakan IndoBERT | IndoBERT fine-tuned | Akurasi 91.2% pada dataset berita umum Indonesia | Tidak mengintegrasikan GNN dan tidak fokus pada domain anggaran pendidikan |
+| 6 | Shu et al., 2020 | Fake News Detection on Social Media: A Data Mining Perspective | Survey (SVM, LSTM, CNN) | Model berbasis konten teks mencapai akurasi 70-85%, model hybrid mencapai >90% | Survey tidak membahas GNN dan tidak fokus pada bahasa Indonesia |
+| 7 | Velickovic et al., 2018 | Graph Attention Networks | GAT | GAT melampaui GCN pada Cora (83.0% vs 81.5%) dan Citeseer (72.5% vs 70.3%) | Tidak diterapkan pada tugas deteksi hoaks berbahasa Indonesia |

@@ -4,12 +4,12 @@ import { cn } from "../lib/utils";
 import { useState } from "react";
 
 const mockDatasets = [
-  { id: 1, text: "Ujian Nasional akan dihapus tahun depan dan diganti sistem poin murni dari guru.", label: "Hoaks" },
-  { id: 2, text: "Kementerian Pendidikan menegaskan tidak ada penghapusan tunjangan profesi guru.", label: "Fakta" },
-  { id: 3, text: "Beredar pesan suara yang menyebut vaksinasi jadi syarat mutlak ambil rapor siswa.", label: "Hoaks" },
-  { id: 4, text: "Mendikbudristek tetapkan aturan seragam baju adat untuk hari-hari tertentu.", label: "Fakta" },
-  { id: 5, text: "Sekolah gratis di semua jenjang swasta akan diberlakukan mulai bulan juli.", label: "Hoaks" },
-  { id: 6, text: "Bantuan kuota internet gratis bagi pelajar akan dilanjutkan semester ini.", label: "Fakta" },
+  { id: 1, text: "National exams will be abolished next year and replaced with a pure teacher-point system.", label: "Hoax" },
+  { id: 2, text: "The Ministry of Education confirmed that there is no abolishment of teacher professional allowances.", label: "Fact" },
+  { id: 3, text: "A voice message is circulating claiming that vaccination is a mandatory requirement to collect student report cards.", label: "Hoax" },
+  { id: 4, text: "The Minister of Education sets regulations for traditional attire uniforms on certain days.", label: "Fact" },
+  { id: 5, text: "Free schooling at all private levels will be implemented starting in July.", label: "Hoax" },
+  { id: 6, text: "Free internet quota assistance for students will continue this semester.", label: "Fact" },
 ];
 
 export function DatasetsPage() {
@@ -22,7 +22,7 @@ export function DatasetsPage() {
   const columns = [
     { header: "ID", accessor: "id" },
     { 
-      header: "Teks Dokumen", 
+      header: "Document Text", 
       accessor: "text",
       cell: (item) => <div className="max-w-2xl text-slate-600 truncate">{item.text}</div>
     },
@@ -32,7 +32,7 @@ export function DatasetsPage() {
       cell: (item) => (
         <span className={cn(
           "px-3 py-1 rounded-full text-xs font-semibold",
-          item.label === "Hoaks" ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"
+          item.label === "Hoax" ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"
         )}>
           {item.label}
         </span>
@@ -46,9 +46,9 @@ export function DatasetsPage() {
         <div>
           <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
             <Database className="w-6 h-6 text-blue-600" />
-            Manajemen Dataset
+            Dataset Management
           </h2>
-          <p className="text-slate-500 mt-1">Kelola dan tinjau data latih maupun data uji untuk evaluasi model.</p>
+          <p className="text-slate-500 mt-1">Manage and review training and testing data for model evaluation.</p>
         </div>
         
         <div className="flex items-center gap-3 w-full md:w-auto">
@@ -56,7 +56,7 @@ export function DatasetsPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input 
               type="text" 
-              placeholder="Cari teks dataset..." 
+              placeholder="Search dataset text..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
@@ -72,11 +72,11 @@ export function DatasetsPage() {
         <Table items={filteredData} columns={columns} />
         
         <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between text-sm text-slate-500 bg-slate-50">
-          <span>Menampilkan {filteredData.length} dari {mockDatasets.length} entri</span>
+          <span>Showing {filteredData.length} of {mockDatasets.length} entries</span>
           <div className="flex gap-2">
-            <button className="px-3 py-1 rounded-md hover:bg-slate-200 transition-colors disabled:opacity-50" disabled>Sebelumnya</button>
+            <button className="px-3 py-1 rounded-md hover:bg-slate-200 transition-colors disabled:opacity-50" disabled>Previous</button>
             <button className="px-3 py-1 rounded-md bg-white border border-slate-200">1</button>
-            <button className="px-3 py-1 rounded-md hover:bg-slate-200 transition-colors disabled:opacity-50" disabled>Selanjutnya</button>
+            <button className="px-3 py-1 rounded-md hover:bg-slate-200 transition-colors disabled:opacity-50" disabled>Next</button>
           </div>
         </div>
       </div>

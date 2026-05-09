@@ -42,7 +42,7 @@ class PreprocessedLog(Base):
 class ModelTrainingResult(Base):
     __tablename__ = "model_training_results"
     id              = Column(Integer, primary_key=True, index=True)
-    model_name      = Column(String, default="Model Baru")
+    model_name      = Column(String, default="New Model")
     dataset_id      = Column(Integer)
     split_ratio     = Column(String)
     accuracy        = Column(Float)

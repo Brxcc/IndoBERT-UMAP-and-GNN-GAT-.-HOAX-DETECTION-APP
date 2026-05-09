@@ -38,6 +38,7 @@ import torch
 from ml_core.indobert_umap import get_indobert, UMAPReducer
 from ml_core.training_engine import train_model, construct_graph, MODELS_DIR
 from ml_core.gat_network import ContentGraphGAT
+from ml_core.preprocessing_utils import preprocess_text, get_stats
 
 router = APIRouter(prefix="/admin", tags=["Admin ML Pipeline"])
 
@@ -64,20 +65,86 @@ def preprocess_dataset(req: schemas.ProcessRequest, db: Session = Depends(get_db
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset not found")
     try:
+        import re
         df = read_dataset_file(dataset.filepath)
+
+        # Detect text column
+        text_col = None
         for col in df.columns:
-            if df[col].dtype == object:
-                df[col] = df[col].astype(str).str.strip()
-        df = df.dropna(how="all")
+            c = str(col).lower()
+            if any(k in c for k in ["text", "judul", "narasi", "berita", "konten"]):
+                text_col = col
+                break
+        if not text_col:
+            text_col = df.columns[0]
+
+        total_tokens_before = 0
+        total_tokens_after  = 0
+        all_slang_matches   = []
+        all_stopword_matches = []
+
+        def process_row(row_text):
+            nonlocal total_tokens_before, total_tokens_after
+            tokens_before = len(re.findall(r'\b\w+\b', str(row_text)))
+            total_tokens_before += tokens_before
+
+            clean, slang_m, sw_m = preprocess_text(
+                row_text,
+                convert_slang=req.convert_slang,
+                remove_stopwords=req.remove_stopwords,
+            )
+            tokens_after = len(re.findall(r'\b\w+\b', clean))
+            total_tokens_after += tokens_after
+            all_slang_matches.extend(slang_m)
+            all_stopword_matches.extend(sw_m)
+            return clean
+
+        df[text_col] = df[text_col].astype(str).apply(process_row)
+        df = df[df[text_col].str.strip() != ""]
+
+        slang_table, stopword_table = get_stats(
+            all_slang_matches, all_stopword_matches, df, text_col
+        )
+
         clean_path = os.path.splitext(dataset.filepath)[0] + "_clean.csv"
         df.to_csv(clean_path, index=False)
+
+        version_str = "Cleaned v1"
+        if req.convert_slang:    version_str += " + Slang"
+        if req.remove_stopwords: version_str += " + Stopwords"
+
         log = models.PreprocessedLog(
-            dataset_name=dataset.name, version="Cleaned v1", filepath=clean_path
+            dataset_name=dataset.name, version=version_str, filepath=clean_path
         )
         db.add(log); db.commit(); db.refresh(log)
-        return {"message": f"Preprocessing selesai: {len(df)} baris", "path": clean_path, "rows": len(df)}
+
+        reduction_pct = round(
+            (1 - total_tokens_after / total_tokens_before) * 100, 2
+        ) if total_tokens_before > 0 else 0.0
+
+        return {
+            "message": f"Preprocessing complete: {len(df)} rows",
+            "path":    clean_path,
+            "rows":    len(df),
+            "stats": {
+                "tokens_before":    total_tokens_before,
+                "tokens_after":     total_tokens_after,
+                "reduction_pct":    reduction_pct,
+                "slang_total":      len(all_slang_matches),
+                "slang_unique":     len(set(s[0] for s in all_slang_matches)),
+                "slang_list":       slang_table[:100],
+                "stopword_total":   len(all_stopword_matches),
+                "stopword_unique":  len(set(all_stopword_matches)),
+                "stopword_list":    stopword_table[:100],
+                "reduction_breakdown": {
+                    "slang":     len(all_slang_matches),
+                    "stopwords": len(all_stopword_matches),
+                },
+            },
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Gagal: {e}")
+        import traceback; traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Preprocessing failed: {e}")
 
 
 @router.get("/preprocess/history")
@@ -237,7 +304,7 @@ def background_train_task(job_id: str, dataset_id: int, settings: dict):
         # -- Save to DB ------------------------------------------------
         final_log = best_metrics or {}
         db_model  = models.ModelTrainingResult(
-            model_name      = settings.get("model_name", "Model Baru"),
+            model_name      = settings.get("model_name", "New Model"),
             dataset_id      = dataset.id,
             split_ratio     = settings.get("data_split_ratio", f"{settings.get('train_ratio',80)}/{settings.get('test_ratio',20)}"),
             accuracy        = final_log.get("akurasi", 0),
@@ -344,6 +411,13 @@ def _serialize_result(r, db=None) -> dict:
             dataset_name = ds.dataset_label or ds.name if ds else None
         except Exception:
             pass
+    # Parse settings_json so frontend receives an object, not a raw string
+    parsed_settings = {}
+    if r.settings_json:
+        try:
+            parsed_settings = json.loads(r.settings_json)
+        except Exception:
+            parsed_settings = {}
     return {
         "id": r.id, "model_name": r.model_name, "dataset_id": r.dataset_id,
         "dataset_name": dataset_name,
@@ -351,7 +425,9 @@ def _serialize_result(r, db=None) -> dict:
         "recall": r.recall, "f1_score": r.f1_score, "mcc": r.mcc,
         "macro_average": r.macro_average, "weighted_average": r.weighted_average,
         "roc_auc": r.roc_auc, "mean_std": r.mean_std,
-        "algorithm_mode": r.algorithm_mode, "settings_json": r.settings_json,
+        "algorithm_mode": r.algorithm_mode,
+        "settings_json": r.settings_json,   # keep raw string for backward compat
+        "settings": parsed_settings,         # parsed object for frontend use
         "best_model_path": r.best_model_path,
         "timestamp": r.timestamp.isoformat() if r.timestamp else None,
     }
@@ -440,7 +516,7 @@ def _load_model_and_predict(texts: list, model_record, db) -> list:
     if not model_record.best_model_path or not os.path.exists(model_record.best_model_path):
         raise HTTPException(
             status_code=404,
-            detail=f"File model '{model_record.model_name}' tidak ditemukan. Latih ulang model terlebih dahulu."
+            detail=f"Model file '{model_record.model_name}' not found. Please retrain the model first."
         )
 
     device     = torch.device("cuda" if torch.cuda.is_available() else "cpu")

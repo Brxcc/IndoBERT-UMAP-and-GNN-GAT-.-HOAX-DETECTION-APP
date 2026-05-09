@@ -156,7 +156,7 @@ function Toggle({ value, onChange, label, disabled }) {
     <button type="button" onClick={() => !disabled && onChange(!value)} disabled={disabled} className="flex items-center gap-2">
       {value
         ? <ToggleRight className={cn("w-8 h-8", disabled ? "text-blue-300" : "text-blue-500")} />
-        : <ToggleLeft  className={cn("w-8 h-8", disabled ? "text-slate-200" : "text-slate-400")} />}
+        : <ToggleLeft className={cn("w-8 h-8", disabled ? "text-slate-200" : "text-slate-400")} />}
       <span className={cn("text-sm font-semibold", disabled ? "text-slate-400" : "text-slate-700")}>{label || (value ? "On" : "Off")}</span>
     </button>
   );
@@ -187,7 +187,7 @@ function StepBar({ current, total }) {
           <div className={cn(
             "flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap",
             i === current ? "bg-blue-600 text-white shadow-lg" :
-            i < current  ? "bg-blue-50 text-blue-600" : "text-slate-400 bg-slate-50"
+              i < current ? "bg-blue-50 text-blue-600" : "text-slate-400 bg-slate-50"
           )}>
             <span className={cn(
               "w-5 h-5 rounded-full flex items-center justify-center text-[10px] uppercase border",
@@ -207,13 +207,13 @@ import { ChevronDown } from "lucide-react";
 // ─── Data Split Ratio Trial Component ──────────────────────────────────────────
 function SplitRatioTrial({ onBestRatioFound }) {
   const [train, setTrain] = useState(80);
-  const [test,  setTest]  = useState(20);
+  const [test, setTest] = useState(20);
   const [ratios, setRatios] = useState(["70/30", "80/20", "90/10"]);
   const [editIdx, setEditIdx] = useState(null);
   const [editTrain, setEditTrain] = useState(0);
 
   const [trialEpoch, setTrialEpoch] = useState(3);
-  const [trialLR,    setTrialLR]    = useState("2e-5");
+  const [trialLR, setTrialLR] = useState("2e-5");
   const [trialRunning, setTrialRunning] = useState(false);
   const [trialResults, setTrialResults] = useState([]);
   const [bestRatio, setBestRatio] = useState(null);
@@ -434,16 +434,89 @@ export function ProcessingPage() {
   const set = (k, v) => setS(p => ({ ...p, [k]: v }));
 
   useEffect(() => {
-    fetch(`${API}/dataset/history`).then(r => r.json()).then(d => setDatasets(Array.isArray(d) ? d : [])).catch(() => {});
+    fetch(`${API}/dataset/history`).then(r => r.json()).then(d => setDatasets(Array.isArray(d) ? d : [])).catch(() => { });
     loadHistory();
     return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
   }, []);
 
   const loadHistory = () => {
-    fetch(`${API}/training/results`).then(r => r.json()).then(d => setHistory(Array.isArray(d) ? d : [])).catch(() => {});
+    fetch(`${API}/training/results`).then(r => r.json()).then(d => setHistory(Array.isArray(d) ? d : [])).catch(() => { });
   };
 
+  // ─── Load Parameters from a Previous Model ─────────────────────────────────
+  const [selectedPrevModel, setSelectedPrevModel] = useState("");
+  const [loadingParams, setLoadingParams] = useState(false);
+  const [loadSuccess, setLoadSuccess] = useState(false);
 
+  const loadParamsFromModel = async (modelId) => {
+    if (!modelId) return;
+    setLoadingParams(true);
+    setLoadSuccess(false);
+    try {
+      const res = await fetch(`${API}/training/results`);
+      const models = await res.json();
+      const model = models.find(m => String(m.id) === String(modelId));
+      if (!model) return;
+
+      let cfg = model.settings || {};
+      // fallback: try parsing raw string if settings key missing
+      if (!model.settings && model.settings_json) {
+        try { cfg = JSON.parse(model.settings_json); } catch { cfg = {}; }
+      }
+
+      // cfg keys = TrainingSettings.model_dump() — exact schema field names
+      setS(prev => ({
+        ...prev,
+        // ── Setup ───────────────────────────────────────────────────
+        ...(cfg.algorithm_mode    != null && { algorithm_mode: cfg.algorithm_mode }),
+        ...(cfg.data_split_ratio  != null && { data_split_ratio: cfg.data_split_ratio }),
+        ...(cfg.train_ratio       != null && cfg.test_ratio != null && {
+          data_split_ratio: `${cfg.train_ratio}/${cfg.test_ratio}`
+        }),
+        // ── IndoBERT ────────────────────────────────────────────────
+        ...(cfg.max_seq_length        != null && { max_seq_length: cfg.max_seq_length }),
+        ...(cfg.indo_learning_rate    != null && { indo_learning_rate: String(cfg.indo_learning_rate) }),
+        ...(cfg.indo_batch_size       != null && { indo_batch_size: cfg.indo_batch_size }),
+        // schema uses indo_epochs, frontend uses indo_epoch
+        ...(cfg.indo_epochs           != null && { indo_epoch: cfg.indo_epochs }),
+        ...(cfg.indo_epoch            != null && { indo_epoch: cfg.indo_epoch }),
+        ...(cfg.indo_fold             != null && { indo_fold: cfg.indo_fold }),
+        ...(cfg.weight_decay          != null && { weight_decay: cfg.weight_decay }),
+        ...(cfg.early_stop_patience   != null && { early_stopping_patience: cfg.early_stop_patience }),
+        ...(cfg.dropout_rate          != null && { dropout_rate: cfg.dropout_rate }),
+        ...(cfg.random_seed           != null && { random_seed: cfg.random_seed }),
+        ...(cfg.warmup_ratio          != null && { warmup_ratio: cfg.warmup_ratio }),
+        ...(cfg.indobert_hidden_dim   != null && { indobert_hidden_dim: cfg.indobert_hidden_dim }),
+        ...(cfg.indobert_num_heads    != null && { indobert_num_heads: cfg.indobert_num_heads }),
+        // ── UMAP ────────────────────────────────────────────────────
+        ...(cfg.use_umap              != null && { enable_umap: cfg.use_umap }),
+        ...(cfg.umap_n_components     != null && { n_components: cfg.umap_n_components }),
+        ...(cfg.umap_n_neighbors      != null && { n_neighbors: cfg.umap_n_neighbors }),
+        ...(cfg.umap_min_dist         != null && { min_dist: cfg.umap_min_dist }),
+        ...(cfg.umap_metric           != null && { metric: cfg.umap_metric }),
+        ...(cfg.umap_random_state     != null && { random_state: cfg.umap_random_state }),
+        // ── GAT ─────────────────────────────────────────────────────
+        ...(cfg.use_gat               != null && { enable_gat: cfg.use_gat }),
+        ...(cfg.gat_hidden_dim        != null && { gat_hidden_dim: cfg.gat_hidden_dim }),
+        ...(cfg.gat_num_heads         != null && { gat_num_heads: cfg.gat_num_heads }),
+        ...(cfg.gat_dropout           != null && { gat_dropout: cfg.gat_dropout }),
+        ...(cfg.gat_learning_rate     != null && { gat_lr: String(cfg.gat_learning_rate) }),
+        ...(cfg.gat_epochs            != null && { gat_epochs: cfg.gat_epochs }),
+        ...(cfg.gat_num_layers        != null && { gat_num_layers: cfg.gat_num_layers }),
+        ...(cfg.knn_k                 != null && { knn_k: cfg.knn_k }),
+        ...(cfg.graph_construction    != null && {
+          graph_construction_method: cfg.graph_construction === "knn" ? "KNN-based" : "Threshold"
+        }),
+      }));
+
+      setLoadSuccess(true);
+      setTimeout(() => setLoadSuccess(false), 4000);
+    } catch (e) {
+      alert(`Failed to load parameters: ${e.message}`);
+    } finally {
+      setLoadingParams(false);
+    }
+  };
 
   const startTraining = async () => {
     if (!s.dataset_id) return alert("Select a dataset!");
@@ -456,46 +529,46 @@ export function ProcessingPage() {
     try {
       const payload = {
         // Core
-        dataset_id:       parseInt(s.dataset_id),
-        model_name:       s.model_name,
-        algorithm_mode:   s.algorithm_mode,
+        dataset_id: parseInt(s.dataset_id),
+        model_name: s.model_name,
+        algorithm_mode: s.algorithm_mode,
         data_split_ratio: s.data_split_ratio,
-        train_ratio:      parseInt(s.data_split_ratio.split("/")[0]),
-        test_ratio:       parseInt(s.data_split_ratio.split("/")[1]),
+        train_ratio: parseInt(s.data_split_ratio.split("/")[0]),
+        test_ratio: parseInt(s.data_split_ratio.split("/")[1]),
 
         // IndoBERT
-        max_seq_length:       parseInt(s.max_seq_length) || 128,
-        indo_learning_rate:   parseFloat(s.indo_learning_rate),
-        indo_batch_size:      parseInt(s.indo_batch_size),
-        indo_epoch:           parseInt(s.indo_epoch),
-        indo_fold:            parseInt(s.indo_fold),
-        weight_decay:         parseFloat(s.weight_decay) || 0.01,
+        max_seq_length: parseInt(s.max_seq_length) || 128,
+        indo_learning_rate: parseFloat(s.indo_learning_rate),
+        indo_batch_size: parseInt(s.indo_batch_size),
+        indo_epoch: parseInt(s.indo_epoch),
+        indo_fold: parseInt(s.indo_fold),
+        weight_decay: parseFloat(s.weight_decay) || 0.01,
 
         // NEW IndoBERT params
-        early_stop_patience:  Math.max(1, parseInt(s.early_stopping_patience) || 3),
-        dropout_rate:         Math.min(0.7, Math.max(0.0, parseFloat(s.dropout_rate) || 0.1)),
-        random_seed:          Math.max(0, Math.min(99999, parseInt(s.random_seed) || 42)),
-        warmup_ratio:         Math.min(0.5, Math.max(0.0, parseFloat(s.warmup_ratio) || 0.1)),
-        indobert_hidden_dim:  parseInt(s.indobert_hidden_dim) || 768,
-        indobert_num_heads:   parseInt(s.indobert_num_heads)  || 12,
+        early_stop_patience: Math.max(1, parseInt(s.early_stopping_patience) || 3),
+        dropout_rate: Math.min(0.7, Math.max(0.0, parseFloat(s.dropout_rate) || 0.1)),
+        random_seed: Math.max(0, Math.min(99999, parseInt(s.random_seed) || 42)),
+        warmup_ratio: Math.min(0.5, Math.max(0.0, parseFloat(s.warmup_ratio) || 0.1)),
+        indobert_hidden_dim: parseInt(s.indobert_hidden_dim) || 768,
+        indobert_num_heads: parseInt(s.indobert_num_heads) || 12,
 
         // UMAP — map short state keys → backend schema keys
-        use_umap:           Boolean(s.enable_umap),
-        umap_n_components:  parseInt(s.n_components)  || 64,
-        umap_n_neighbors:   parseInt(s.n_neighbors)   || 15,
-        umap_min_dist:      parseFloat(s.min_dist)    || 0.1,
-        umap_metric:        s.metric  || "cosine",
-        umap_random_state:  parseInt(s.random_state)  || 42,
+        use_umap: Boolean(s.enable_umap),
+        umap_n_components: parseInt(s.n_components) || 64,
+        umap_n_neighbors: parseInt(s.n_neighbors) || 15,
+        umap_min_dist: parseFloat(s.min_dist) || 0.1,
+        umap_metric: s.metric || "cosine",
+        umap_random_state: parseInt(s.random_state) || 42,
 
         // GAT
-        use_gat:           Boolean(s.enable_gat),
-        gat_hidden_dim:    parseInt(s.gat_hidden_dim),
-        gat_num_heads:     parseInt(s.gat_num_heads),
-        gat_dropout:       parseFloat(s.gat_dropout),
+        use_gat: Boolean(s.enable_gat),
+        gat_hidden_dim: parseInt(s.gat_hidden_dim),
+        gat_num_heads: parseInt(s.gat_num_heads),
+        gat_dropout: parseFloat(s.gat_dropout),
         gat_learning_rate: parseFloat(s.gat_lr),
-        gat_epochs:        parseInt(s.gat_epochs),
-        gat_num_layers:    parseInt(s.gat_num_layers),
-        knn_k:             parseInt(s.knn_k),
+        gat_epochs: parseInt(s.gat_epochs),
+        gat_num_layers: parseInt(s.gat_num_layers),
+        knn_k: parseInt(s.knn_k),
         graph_construction: s.graph_construction_method === "KNN-based" ? "knn" : "threshold",
       };
       const res = await fetch(`${API}/train-pipeline`, {
@@ -585,7 +658,7 @@ export function ProcessingPage() {
   };
 
   const renderCurrentStep = () => {
-    switch(step) {
+    switch (step) {
       // ───────────────────────────────────────────────────────────────────────
       // STEP 0: Configuration & Dataset Split
       // ───────────────────────────────────────────────────────────────────────
@@ -594,24 +667,19 @@ export function ProcessingPage() {
           <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
             <div className="mb-6 pb-6 border-b border-slate-200">
               <Field label="Load Past Configuration (Optional)">
-                <SelectInput 
-                  value={""} 
+                <SelectInput
+                  value={selectedPrevModel}
                   onChange={v => {
+                    setSelectedPrevModel(v);
                     if (!v) return;
-                    const target = history.find(h => h.id === parseInt(v));
-                    if (target && target.settings_json) {
-                       try {
-                         const parsed = JSON.parse(target.settings_json);
-                         setS(prev => ({...prev, ...parsed}));
-                         alert("Configuration loaded successfully! You can press Next Step to review.");
-                       } catch { alert("Failed to parse past configuration"); }
-                    }
-                  }} 
+                    loadParamsFromModel(v);
+                  }}
                   options={[
-                    {value: "", label: "-- Start Fresh / Keep Current --"},
-                    ...history.map(h => ({value: h.id, label: `${h.model_name} - ${h.algorithm_mode} (${new Date(h.timestamp).toLocaleString("en-US")})`}))
-                  ]} 
+                    { value: "", label: "-- Start Fresh / Keep Current --" },
+                    ...history.map(h => ({ value: h.id, label: `${h.model_name} · ${h.algorithm_mode} · Acc: ${h.accuracy != null ? (h.accuracy*100).toFixed(1)+'%' : '—'} (${new Date(h.timestamp).toLocaleString("en-US")})` }))
+                  ]}
                 />
+                {loadSuccess && <p className="text-xs text-green-600 font-semibold mt-1">✅ Parameters applied successfully!</p>}
               </Field>
             </div>
             <div className="grid grid-cols-2 gap-6">
@@ -620,7 +688,7 @@ export function ProcessingPage() {
               </Field>
               <Field label="Dataset" required>
                 <SelectInput value={s.dataset_id} onChange={v => set("dataset_id", v)}
-                  options={[{value:"", label: "-- Select Dataset --"}, ...datasets.map(d=>({value: d.id, label: `${d.dataset_label || d.name} (${d.total_entries} rows)`}))]} />
+                  options={[{ value: "", label: "-- Select Dataset --" }, ...datasets.map(d => ({ value: d.id, label: `${d.dataset_label || d.name} (${d.total_entries} rows)` }))]} />
               </Field>
               <Field label="Algorithm Pipeline" required>
                 <SelectInput value={s.algorithm_mode} onChange={v => {
@@ -629,14 +697,14 @@ export function ProcessingPage() {
                   if (v === "indobert_umap") { set("enable_umap", true); set("enable_gat", false); }
                   if (v === "hybrid") { set("enable_umap", true); set("enable_gat", true); }
                 }} options={[
-                  {value: "hybrid", label: "IndoBERT + UMAP + GAT (Hybrid)"},
-                  {value: "indobert_umap", label: "IndoBERT + UMAP Only"},
-                  {value: "indobert_only", label: "IndoBERT Only"}
+                  { value: "hybrid", label: "IndoBERT + UMAP + GAT (Hybrid)" },
+                  { value: "indobert_umap", label: "IndoBERT + UMAP Only" },
+                  { value: "indobert_only", label: "IndoBERT Only" }
                 ]} />
               </Field>
               <Field label="Selected Data Split (Train/Test)">
                 <div className="flex gap-2">
-                  <TextInput value={s.data_split_ratio} onChange={v=>set("data_split_ratio", v)} placeholder="e.g., 80/20" />
+                  <TextInput value={s.data_split_ratio} onChange={v => set("data_split_ratio", v)} placeholder="e.g., 80/20" />
                 </div>
               </Field>
             </div>
@@ -818,30 +886,30 @@ export function ProcessingPage() {
             <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl">
               {(s.optimizer === "AdamW" || s.optimizer === "Adam") && (
                 <div className="grid grid-cols-3 gap-4">
-                  <Field label="Beta 1" defaultText="0.9"><TextInput type="number" step="0.01" value={s.beta1} onChange={v=>set("beta1",v)}/></Field>
-                  <Field label="Beta 2" defaultText="0.999"><TextInput type="number" step="0.001" value={s.beta2} onChange={v=>set("beta2",v)}/></Field>
-                  <Field label="Epsilon" defaultText="1e-8"><SelectInput value={s.epsilon} onChange={v=>set("epsilon",v)} options={["1e-8", "1e-7", "1e-6"]} /></Field>
+                  <Field label="Beta 1" defaultText="0.9"><TextInput type="number" step="0.01" value={s.beta1} onChange={v => set("beta1", v)} /></Field>
+                  <Field label="Beta 2" defaultText="0.999"><TextInput type="number" step="0.001" value={s.beta2} onChange={v => set("beta2", v)} /></Field>
+                  <Field label="Epsilon" defaultText="1e-8"><SelectInput value={s.epsilon} onChange={v => set("epsilon", v)} options={["1e-8", "1e-7", "1e-6"]} /></Field>
                 </div>
               )}
               {s.optimizer === "Optuna (Auto-Tuning)" && (
                 <div className="grid grid-cols-3 gap-4">
-                  <Field label="Number of Trials" defaultText="20"><TextInput type="number" value={s.optuna_trials} onChange={v=>set("optuna_trials",v)}/></Field>
-                  <Field label="Search Direction"><SelectInput value={s.optuna_direction} onChange={v=>set("optuna_direction",v)} options={["Maximize","Minimize"]} /></Field>
-                  <Field label="Metric to Optimize"><SelectInput value={s.optuna_metric} onChange={v=>set("optuna_metric",v)} options={["Accuracy","F1-Score"]} /></Field>
+                  <Field label="Number of Trials" defaultText="20"><TextInput type="number" value={s.optuna_trials} onChange={v => set("optuna_trials", v)} /></Field>
+                  <Field label="Search Direction"><SelectInput value={s.optuna_direction} onChange={v => set("optuna_direction", v)} options={["Maximize", "Minimize"]} /></Field>
+                  <Field label="Metric to Optimize"><SelectInput value={s.optuna_metric} onChange={v => set("optuna_metric", v)} options={["Accuracy", "F1-Score"]} /></Field>
                 </div>
               )}
               {s.optimizer === "Grid Search" && (
                 <div className="grid grid-cols-3 gap-4">
-                  <Field label="Learning Rate values (comma separated)"><TextInput value={s.grid_lr_values} onChange={v=>set("grid_lr_values",v)}/></Field>
-                  <Field label="Batch Size values"><TextInput value={s.grid_batch_values} onChange={v=>set("grid_batch_values",v)}/></Field>
-                  <Field label="Epoch values"><TextInput value={s.grid_epoch_values} onChange={v=>set("grid_epoch_values",v)}/></Field>
+                  <Field label="Learning Rate values (comma separated)"><TextInput value={s.grid_lr_values} onChange={v => set("grid_lr_values", v)} /></Field>
+                  <Field label="Batch Size values"><TextInput value={s.grid_batch_values} onChange={v => set("grid_batch_values", v)} /></Field>
+                  <Field label="Epoch values"><TextInput value={s.grid_epoch_values} onChange={v => set("grid_epoch_values", v)} /></Field>
                 </div>
               )}
               {s.optimizer === "Population Based Training" && (
                 <div className="grid grid-cols-3 gap-4">
-                  <Field label="Population Size" defaultText="10"><TextInput type="number" value={s.pbt_populationSize} onChange={v=>set("pbt_populationSize",v)}/></Field>
-                  <Field label="Perturbation Interval" defaultText="5"><TextInput type="number" value={s.pbt_perturbInterval} onChange={v=>set("pbt_perturbInterval",v)}/></Field>
-                  <Field label="Mutation Rate" defaultText="0.2"><TextInput type="number" step="0.1" value={s.pbt_mutationRate} onChange={v=>set("pbt_mutationRate",v)}/></Field>
+                  <Field label="Population Size" defaultText="10"><TextInput type="number" value={s.pbt_populationSize} onChange={v => set("pbt_populationSize", v)} /></Field>
+                  <Field label="Perturbation Interval" defaultText="5"><TextInput type="number" value={s.pbt_perturbInterval} onChange={v => set("pbt_perturbInterval", v)} /></Field>
+                  <Field label="Mutation Rate" defaultText="0.2"><TextInput type="number" step="0.1" value={s.pbt_mutationRate} onChange={v => set("pbt_mutationRate", v)} /></Field>
                 </div>
               )}
             </div>
@@ -869,7 +937,7 @@ export function ProcessingPage() {
                 example="Set patience=3 if your dataset is small (<5000 samples). Set patience=5–10 for larger datasets to allow gradual convergence."
                 defaultText="3">
                 <TextInput type="number" value={s.early_stopping_patience} min={1} max={20}
-                  onChange={v => set("early_stopping_patience", Math.max(1, parseInt(v)||3))} />
+                  onChange={v => set("early_stopping_patience", Math.max(1, parseInt(v) || 3))} />
               </Field>
               <Field label="Dropout Rate"
                 definition="The probability that any given neuron's output is set to zero during training, forcing the network to learn more robust features."
@@ -878,7 +946,7 @@ export function ProcessingPage() {
                 example="dropout=0.1 means 10% of neurons are randomly disabled each forward pass. If training accuracy >> test accuracy (gap > 10%), try increasing to 0.3–0.5."
                 defaultText="0.1">
                 <TextInput type="number" step="0.05" value={s.dropout_rate} min={0.0} max={0.7}
-                  onChange={v => set("dropout_rate", Math.min(0.7, Math.max(0.0, parseFloat(v)||0.1)))} />
+                  onChange={v => set("dropout_rate", Math.min(0.7, Math.max(0.0, parseFloat(v) || 0.1)))} />
               </Field>
               <Field label="Random Seed"
                 definition="A fixed starting point for all random number generators, ensuring that your experiment produces identical results every time you run it with the same settings."
@@ -887,7 +955,7 @@ export function ProcessingPage() {
                 example="seed=42 is a common default. If your results vary wildly between runs, fixing the seed helps isolate whether variation is due to model design or randomness."
                 defaultText="42">
                 <TextInput type="number" value={s.random_seed} min={0} max={99999}
-                  onChange={v => set("random_seed", Math.max(0, Math.min(99999, parseInt(v)||42)))} />
+                  onChange={v => set("random_seed", Math.max(0, Math.min(99999, parseInt(v) || 42)))} />
               </Field>
               <Field label="Warmup Ratio"
                 definition="The fraction of total training steps during which the learning rate gradually increases from 0 to its target value, preventing large gradient updates at the start of training."
@@ -896,7 +964,7 @@ export function ProcessingPage() {
                 example="With 100 total steps and warmup_ratio=0.1, the LR warms up for the first 10 steps, then decays. Recommended range: 0.05–0.2 for fine-tuning transformers."
                 defaultText="0.1">
                 <TextInput type="number" step="0.01" value={s.warmup_ratio} min={0.0} max={0.5}
-                  onChange={v => set("warmup_ratio", Math.min(0.5, Math.max(0.0, parseFloat(v)||0.1)))} />
+                  onChange={v => set("warmup_ratio", Math.min(0.5, Math.max(0.0, parseFloat(v) || 0.1)))} />
               </Field>
               <Field label="IndoBERT Hidden Dimension"
                 definition="The size of the hidden dimension for projection and adapter layers added ON TOP of IndoBERT. Does NOT alter the core pretrained architecture (fixed at 768)."
@@ -905,7 +973,7 @@ export function ProcessingPage() {
                 example="Default=768 matches IndoBERT base output. Use 512 for a lighter adapter. Always ensure: hidden_dim ÷ num_heads = integer."
                 defaultText="768">
                 <TextInput type="number" value={s.indobert_hidden_dim} min={64} max={2048}
-                  onChange={v => set("indobert_hidden_dim", parseInt(v)||768)} placeholder="e.g. 768" />
+                  onChange={v => set("indobert_hidden_dim", parseInt(v) || 768)} placeholder="e.g. 768" />
                 {validateIndoBERT(s.indobert_hidden_dim, s.indobert_num_heads) && (
                   <p className="text-red-500 text-xs mt-1">{validateIndoBERT(s.indobert_hidden_dim, s.indobert_num_heads)}</p>
                 )}
@@ -917,7 +985,7 @@ export function ProcessingPage() {
                 example="Default=12 matches IndoBERT base. If hidden_dim=512, use num_heads=8 (512 ÷ 8 = 64). A validation error appears if divisibility fails."
                 defaultText="12">
                 <TextInput type="number" value={s.indobert_num_heads} min={1} max={64}
-                  onChange={v => set("indobert_num_heads", parseInt(v)||12)} placeholder="e.g. 12" />
+                  onChange={v => set("indobert_num_heads", parseInt(v) || 12)} placeholder="e.g. 12" />
                 {validateIndoBERT(s.indobert_hidden_dim, s.indobert_num_heads) && (
                   <p className="text-red-500 text-xs mt-1">{validateIndoBERT(s.indobert_hidden_dim, s.indobert_num_heads)}</p>
                 )}
@@ -1092,7 +1160,7 @@ export function ProcessingPage() {
           </div>
 
           <div className={cn("space-y-8 transition-opacity", (!s.enable_gat || s.algorithm_mode !== "hybrid") && "opacity-40 pointer-events-none")}>
-            
+
             <div>
               <SubSectionTitle>Graph & Input Representation</SubSectionTitle>
               <div className="grid grid-cols-2 gap-x-8 gap-y-2">
@@ -1282,11 +1350,11 @@ export function ProcessingPage() {
               {loading ? "Processing..." : "Start Training"}
             </button>
           </div>
-          
+
           {statusMsg && (
             <div className={cn("w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold border",
               statusMsg.includes("✅") ? "bg-emerald-50 border-emerald-200 text-emerald-700" :
-              statusMsg.includes("❌") ? "bg-rose-50 border-rose-200 text-rose-700" : "bg-blue-50 border-blue-200 text-blue-700"
+                statusMsg.includes("❌") ? "bg-rose-50 border-rose-200 text-rose-700" : "bg-blue-50 border-blue-200 text-blue-700"
             )}>
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}
               <span>{statusMsg}</span>
@@ -1308,12 +1376,12 @@ export function ProcessingPage() {
                   <tbody>
                     {logs.slice().reverse().map((lg, i) => (
                       <tr key={i} className={cn("hover:bg-slate-100 transition border-b border-black last:border-b-0", lg.is_best ? "bg-slate-100 font-bold" : "")}>
-                         <td className="px-4 py-2 border-r border-black">
-                            {lg.epoch} {lg.is_best && <span className="ml-2 text-[10px] border border-black px-1 uppercase tracking-tighter shadow-[1px_1px_0_0_rgba(0,0,0,1)]">Best</span>}
-                         </td>
-                         <td className="px-4 py-2 border-r border-black">{(lg.akurasi * 100).toFixed(2)}%</td>
-                         <td className="px-4 py-2 border-r border-black">{(lg.f1 * 100).toFixed(2)}%</td>
-                         <td className="px-4 py-2">{lg.loss?.toFixed(4)}</td>
+                        <td className="px-4 py-2 border-r border-black">
+                          {lg.epoch} {lg.is_best && <span className="ml-2 text-[10px] border border-black px-1 uppercase tracking-tighter shadow-[1px_1px_0_0_rgba(0,0,0,1)]">Best</span>}
+                        </td>
+                        <td className="px-4 py-2 border-r border-black">{(lg.akurasi * 100).toFixed(2)}%</td>
+                        <td className="px-4 py-2 border-r border-black">{(lg.f1 * 100).toFixed(2)}%</td>
+                        <td className="px-4 py-2">{lg.loss?.toFixed(4)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1341,7 +1409,7 @@ export function ProcessingPage() {
         <div className="mb-10 pb-6 border-b border-slate-100">
           <StepBar current={step} total={STEPS} />
         </div>
-        
+
         <div className="min-h-[500px]">
           {renderCurrentStep()}
         </div>
