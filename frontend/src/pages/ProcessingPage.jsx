@@ -179,7 +179,7 @@ function SubSectionTitle({ children }) {
 }
 
 function StepBar({ current, total }) {
-  const steps = ["Config & Data Split Ratio Trial", "IndoBERT Parameters", "UMAP Parameters", "GAT Parameters", "Review & Run"];
+  const steps = ["Config & Data Split Ratio Trial", "IndoSBERT Parameters", "UMAP Parameters", "GAT Parameters", "Review & Run"];
   return (
     <div className="flex items-center justify-between w-full">
       {steps.map((s, i) => (
@@ -380,13 +380,13 @@ export function ProcessingPage() {
     pbt_mutationRate: 0.2,
     weight_decay: 0.01,
 
-    // NEW IndoBERT anti-overfitting params
+    // NEW IndoSBERT anti-overfitting params
     early_stopping_patience: 3,
     dropout_rate: 0.1,
     random_seed: 42,
     warmup_ratio: 0.1,
-    indobert_hidden_dim: 768,
-    indobert_num_heads: 12,
+    indosbert_hidden_dim: 768,
+    indosbert_num_heads: 12,
 
     // Group 3
     activation_function: "Softmax",
@@ -426,9 +426,9 @@ export function ProcessingPage() {
     const h = parseInt(hd) || 256, n = parseInt(nh) || 8;
     return h % n === 0 ? null : `GAT Hidden Dim (${h}) must be divisible by Num Heads (${n})`;
   };
-  const validateIndoBERT = (hd, nh) => {
+  const validateIndoSBERT = (hd, nh) => {
     const h = parseInt(hd) || 768, n = parseInt(nh) || 12;
-    return h % n === 0 ? null : `IndoBERT Hidden Dim (${h}) must be divisible by Num Heads (${n})`;
+    return h % n === 0 ? null : `IndoSBERT Hidden Dim (${h}) must be divisible by Num Heads (${n})`;
   };
 
   const set = (k, v) => setS(p => ({ ...p, [k]: v }));
@@ -473,7 +473,7 @@ export function ProcessingPage() {
         ...(cfg.train_ratio       != null && cfg.test_ratio != null && {
           data_split_ratio: `${cfg.train_ratio}/${cfg.test_ratio}`
         }),
-        // ── IndoBERT ────────────────────────────────────────────────
+        // ── IndoSBERT ────────────────────────────────────────────────
         ...(cfg.max_seq_length        != null && { max_seq_length: cfg.max_seq_length }),
         ...(cfg.indo_learning_rate    != null && { indo_learning_rate: String(cfg.indo_learning_rate) }),
         ...(cfg.indo_batch_size       != null && { indo_batch_size: cfg.indo_batch_size }),
@@ -486,8 +486,8 @@ export function ProcessingPage() {
         ...(cfg.dropout_rate          != null && { dropout_rate: cfg.dropout_rate }),
         ...(cfg.random_seed           != null && { random_seed: cfg.random_seed }),
         ...(cfg.warmup_ratio          != null && { warmup_ratio: cfg.warmup_ratio }),
-        ...(cfg.indobert_hidden_dim   != null && { indobert_hidden_dim: cfg.indobert_hidden_dim }),
-        ...(cfg.indobert_num_heads    != null && { indobert_num_heads: cfg.indobert_num_heads }),
+        ...(cfg.indosbert_hidden_dim   != null && { indosbert_hidden_dim: cfg.indosbert_hidden_dim }),
+        ...(cfg.indosbert_num_heads    != null && { indosbert_num_heads: cfg.indosbert_num_heads }),
         // ── UMAP ────────────────────────────────────────────────────
         ...(cfg.use_umap              != null && { enable_umap: cfg.use_umap }),
         ...(cfg.umap_n_components     != null && { n_components: cfg.umap_n_components }),
@@ -523,7 +523,7 @@ export function ProcessingPage() {
     // Validate before sending
     const gatErr = validateGAT(s.gat_hidden_dim, s.gat_num_heads);
     if (gatErr) return alert(gatErr);
-    const bertErr = validateIndoBERT(s.indobert_hidden_dim, s.indobert_num_heads);
+    const bertErr = validateIndoSBERT(s.indosbert_hidden_dim, s.indosbert_num_heads);
     if (bertErr) return alert(bertErr);
     setLoading(true); setLogs([]); setStatusMsg("Initializing Pipeline...");
     try {
@@ -536,7 +536,7 @@ export function ProcessingPage() {
         train_ratio: parseInt(s.data_split_ratio.split("/")[0]),
         test_ratio: parseInt(s.data_split_ratio.split("/")[1]),
 
-        // IndoBERT
+        // IndoSBERT
         max_seq_length: parseInt(s.max_seq_length) || 128,
         indo_learning_rate: parseFloat(s.indo_learning_rate),
         indo_batch_size: parseInt(s.indo_batch_size),
@@ -544,13 +544,13 @@ export function ProcessingPage() {
         indo_fold: parseInt(s.indo_fold),
         weight_decay: parseFloat(s.weight_decay) || 0.01,
 
-        // NEW IndoBERT params
+        // NEW IndoSBERT params
         early_stop_patience: Math.max(1, parseInt(s.early_stopping_patience) || 3),
         dropout_rate: Math.min(0.7, Math.max(0.0, parseFloat(s.dropout_rate) || 0.1)),
         random_seed: Math.max(0, Math.min(99999, parseInt(s.random_seed) || 42)),
         warmup_ratio: Math.min(0.5, Math.max(0.0, parseFloat(s.warmup_ratio) || 0.1)),
-        indobert_hidden_dim: parseInt(s.indobert_hidden_dim) || 768,
-        indobert_num_heads: parseInt(s.indobert_num_heads) || 12,
+        indosbert_hidden_dim: parseInt(s.indosbert_hidden_dim) || 768,
+        indosbert_num_heads: parseInt(s.indosbert_num_heads) || 12,
 
         // UMAP — map short state keys → backend schema keys
         use_umap: Boolean(s.enable_umap),
@@ -598,22 +598,22 @@ export function ProcessingPage() {
   const POPUPS = {
     // Group 1
     max_seq_length: "Maximum number of tokens per input sequence. Higher values capture more context but require more memory. Example: use 128 for short news headlines, 256 for full paragraphs.",
-    tokenizer: "The tokenizer built into IndoBERT. Uses WordPiece algorithm to split text into subword tokens. This cannot be changed.",
+    tokenizer: "The tokenizer built into IndoSBERT. Uses WordPiece algorithm to split text into subword tokens. This cannot be changed.",
     padding: "Determines how sequences are padded. max_length pads all sequences to Max Sequence Length. longest pads to the longest sequence in the batch. Example: use max_length for consistent tensor shapes.",
     truncation: "Sequences longer than Max Sequence Length are automatically truncated. Always enabled to prevent overflow errors.",
     input_ids: "Numerical representation of each token after tokenization. Automatically produced by the tokenizer.",
     attention_mask: "Binary mask (1 for real tokens, 0 for padding). Tells the model which tokens to attend to. Automatically produced by the tokenizer.",
     token_type_ids: "Optional segment IDs used for sentence-pair tasks (e.g., Question Answering). For single-sentence classification like hoax detection, this can be disabled. Example: enable for tasks like NLI where two sentences are compared.",
     // Group 2
-    hidden_size: "The dimensionality of every hidden state in the encoder. Fixed at 768 for IndoBERT base. Larger models (e.g., IndoBERT large) use 1024.",
-    num_hidden_layers: "Number of Transformer encoder layers stacked in IndoBERT. Each layer processes and refines the token representations.",
+    hidden_size: "The dimensionality of every hidden state in the encoder. Fixed at 768 for IndoSBERT base. Larger models (e.g., IndoSBERT large) use 1024.",
+    num_hidden_layers: "Number of Transformer encoder layers stacked in IndoSBERT. Each layer processes and refines the token representations.",
     use_relu_hidden: "If enabled, replaces the default GELU activation in intermediate layers with ReLU. Example: enabling ReLU may slightly speed up training but GELU generally performs better for language models.",
     num_attention_heads: "Number of parallel attention heads in each encoder layer. Each head attends to different parts of the input independently.",
-    intermediate_size: "Size of the feed-forward network inside each Transformer block (4x hidden size). Fixed in IndoBERT base architecture.",
+    intermediate_size: "Size of the feed-forward network inside each Transformer block (4x hidden size). Fixed in IndoSBERT base architecture.",
     hidden_activation: "Activation function used in the intermediate (feed-forward) layers. GELU is the default for BERT-based models and generally outperforms ReLU for NLP tasks.",
     hidden_dropout_prob: "Dropout rate applied to hidden layer outputs during training. Prevents overfitting. Example: 0.1 means 10% of neurons are randomly dropped per forward pass.",
     attention_probs_dropout_prob: "Dropout rate applied to attention weights. Regularizes the attention mechanism. Example: increase to 0.2 if the model shows signs of overfitting on attention patterns.",
-    learning_rate: "Step size for updating model weights during backpropagation. Select from preset values to avoid input errors. Example: 2e-5 is the standard starting point for IndoBERT fine-tuning. Too high (e.g., 5e-4) causes divergence; too low (e.g., 1e-6) causes extremely slow learning.",
+    learning_rate: "Step size for updating model weights during backpropagation. Select from preset values to avoid input errors. Example: 2e-5 is the standard starting point for IndoSBERT fine-tuning. Too high (e.g., 5e-4) causes divergence; too low (e.g., 1e-6) causes extremely slow learning.",
     batch_size: "Number of samples processed in one training iteration. Example: use 16 as a balanced default. Smaller batch (8) = more noisy updates but less memory; larger batch (32) = more stable but requires more GPU RAM.",
     epochs: "Number of complete passes through the training dataset. Example: 3–5 epochs is standard for fine-tuning BERT. More epochs risk overfitting; fewer epochs may underfit.",
     optimizer: "Optimization algorithm used to update model weights. Example: AdamW is recommended for BERT fine-tuning as it decouples weight decay. Optuna, Grid Search, and PBT are hyperparameter search strategies that automatically find optimal settings.",
@@ -627,15 +627,15 @@ export function ProcessingPage() {
     loss_function: "Standard loss function for multi-class classification. Measures the difference between predicted probability distribution and the true label. Automatically handles the Softmax internally in PyTorch when used with raw logits.",
     output_dropout: "Dropout rate applied before the final classification layer. Example: 0.1 is a light regularization suitable when the dataset is large. Use 0.3 if the model shows overfitting on the validation set.",
     // UMAP
-    n_components: "Number of dimensions in the reduced output space. Example: 64 dimensions retains most semantic information from IndoBERT's 768-dim embeddings while significantly reducing computational cost for GAT.",
+    n_components: "Number of dimensions in the reduced output space. Example: 64 dimensions retains most semantic information from IndoSBERT's 768-dim embeddings while significantly reducing computational cost for GAT.",
     n_neighbors: "Number of neighboring points considered when building the manifold. Example: small values (5–10) emphasize local structure; large values (30–50) emphasize global structure.",
     metric: "Distance function used to measure similarity between data points. Example: cosine is recommended for text embeddings as it measures angular similarity regardless of magnitude.",
     min_dist: "Minimum distance allowed between points in the low-dimensional space. Example: 0.0–0.1 produces tight, well-separated clusters; 0.5–1.0 produces a more uniform, spread-out distribution.",
     spread: "Controls the effective scale of the embedded points. Works together with min_dist: spread sets the global scale while min_dist controls local cluster tightness. Example: increase spread to 1.5 if clusters appear too compressed.",
     random_state: "Seed value for the random number generator. Ensures UMAP produces the same output every run. Example: any fixed integer works; 42 is a common convention.",
-    enable_umap: "If disabled, IndoBERT embeddings are passed directly to GAT without dimensionality reduction. Disable only if computational resources allow processing full 768-dim vectors.",
+    enable_umap: "If disabled, IndoSBERT embeddings are passed directly to GAT without dimensionality reduction. Disable only if computational resources allow processing full 768-dim vectors.",
     // GAT
-    node_features: "Dimensionality of node feature vectors. Each node represents a text sample, and its feature vector is the 768-dim [CLS] embedding from IndoBERT (or reduced dim if UMAP is enabled).",
+    node_features: "Dimensionality of node feature vectors. Each node represents a text sample, and its feature vector is the 768-dim [CLS] embedding from IndoSBERT (or reduced dim if UMAP is enabled).",
     edge_index_format: "Graph edge representation format. COO stores edges as two arrays [source_nodes, target_nodes]. Required format for PyTorch Geometric. Edges are constructed from K-nearest neighbors of node embeddings.",
     edge_weight: "Optional scalar weight assigned to each edge, representing similarity strength between connected nodes. Example: enable and use cosine similarity score as edge weight to give more influence to highly similar node pairs.",
     graph_construction_method: "Method used to build edges between nodes. Example: KNN-based connects each node to its K most similar neighbors — efficient and scalable. Cosine Threshold connects nodes whose similarity exceeds a set threshold. Fully Connected creates edges between all node pairs — only feasible for small datasets.",
@@ -648,11 +648,11 @@ export function ProcessingPage() {
     gat_negative_slope: "Slope coefficient for the negative part of LeakyReLU used inside the attention coefficient computation. Example: 0.2 is the standard value in the original GAT paper.",
     gat_dropout_node: "Dropout applied to node features between GAT layers. Example: 0.3 is a good starting point. Too high (>0.5) degrades performance; 0.0 means no regularization.",
     gat_dropout_attention: "Dropout applied specifically to attention coefficients during training. Prevents the model from over-relying on a small number of edges. Example: 0.1 provides light regularization on the graph attention mechanism.",
-    gat_lr: "Learning rate for the GAT component optimizer. Kept separate from IndoBERT's learning rate because GAT is trained from scratch (no pretrained weights). Example: 1e-3 is standard for training graph networks from scratch. Use a lower value (1e-4) if the training loss oscillates.",
+    gat_lr: "Learning rate for the GAT component optimizer. Kept separate from IndoSBERT's learning rate because GAT is trained from scratch (no pretrained weights). Example: 1e-3 is standard for training graph networks from scratch. Use a lower value (1e-4) if the training loss oscillates.",
     gat_weight_decay: "L2 regularization coefficient for the GAT optimizer. Example: 5e-4 is a common default for graph neural networks. Increase to 1e-3 if overfitting is observed on the validation graph.",
     gat_epochs: "Number of training iterations for the GAT component. Example: 50–200 epochs is typical for GAT on medium-sized graphs. Use Early Stopping to avoid overfitting.",
     gat_num_classes: "Number of output classes. Fixed at 2 for binary hoax classification. The final GAT layer outputs a vector of size 2.",
-    gat_output_activation: "Activation applied to final GAT output. Example: Softmax produces a probability distribution across 2 classes summing to 1. Sigmoid produces independent probabilities per class. For binary classification, both are valid — Softmax is recommended for consistency with IndoBERT's output head.",
+    gat_output_activation: "Activation applied to final GAT output. Example: Softmax produces a probability distribution across 2 classes summing to 1. Sigmoid produces independent probabilities per class. For binary classification, both are valid — Softmax is recommended for consistency with IndoSBERT's output head.",
     gat_loss_function: "Loss function used to train the GAT classifier. CrossEntropyLoss is standard for multi-class node classification and handles the Softmax computation internally when used with raw logits.",
     gat_classifier_dropout: "Dropout applied before the final classification layer in GAT. Example: 0.5 is commonly used in graph classification tasks. Tune down to 0.1 if the dataset is small and the model underfits.",
   };
@@ -693,13 +693,13 @@ export function ProcessingPage() {
               <Field label="Algorithm Pipeline" required>
                 <SelectInput value={s.algorithm_mode} onChange={v => {
                   set("algorithm_mode", v);
-                  if (v === "indobert_only") { set("enable_umap", false); set("enable_gat", false); }
-                  if (v === "indobert_umap") { set("enable_umap", true); set("enable_gat", false); }
+                  if (v === "indosbert_only") { set("enable_umap", false); set("enable_gat", false); }
+                  if (v === "indosbert_umap") { set("enable_umap", true); set("enable_gat", false); }
                   if (v === "hybrid") { set("enable_umap", true); set("enable_gat", true); }
                 }} options={[
-                  { value: "hybrid", label: "IndoBERT + UMAP + GAT (Hybrid)" },
-                  { value: "indobert_umap", label: "IndoBERT + UMAP Only" },
-                  { value: "indobert_only", label: "IndoBERT Only" }
+                  { value: "hybrid", label: "IndoSBERT + UMAP + GAT (Hybrid)" },
+                  { value: "indosbert_umap", label: "IndoSBERT + UMAP Only" },
+                  { value: "indosbert_only", label: "IndoSBERT Only" }
                 ]} />
               </Field>
               <Field label="Selected Data Split (Train/Test)">
@@ -714,7 +714,7 @@ export function ProcessingPage() {
       );
 
       // ───────────────────────────────────────────────────────────────────────
-      // STEP 1: IndoBERT Parameter Settings
+      // STEP 1: IndoSBERT Parameter Settings
       // ───────────────────────────────────────────────────────────────────────
       case 1: return (
         <div className="space-y-8 animate-in fade-in">
@@ -731,11 +731,11 @@ export function ProcessingPage() {
                 <SelectInput value={s.max_seq_length} onChange={v => set("max_seq_length", parseInt(v))} options={[128, 256, 512]} />
               </Field>
               <Field label="Tokenizer"
-                definition="The tokenization algorithm built into IndoBERT. Uses WordPiece to split text into subword tokens, handling Indonesian vocabulary and out-of-vocabulary words."
+                definition="The tokenization algorithm built into IndoSBERT. Uses WordPiece to split text into subword tokens, handling Indonesian vocabulary and out-of-vocabulary words."
                 formula="text → WordPiece → [CLS] token_1 ... token_N [SEP]"
-                interpretation="This is fixed and cannot be changed. The WordPiece tokenizer ensures compatibility with the IndoBERT pretrained weights."
+                interpretation="This is fixed and cannot be changed. The WordPiece tokenizer ensures compatibility with the IndoSBERT pretrained weights."
                 example="'Berita hoaks menyebar' → ['[CLS]', 'ber', '##ita', 'ho', '##aks', 'me', '##nye', '##bar', '[SEP]']">
-                <ReadOnlyField value="IndoBERT WordPiece Tokenizer" />
+                <ReadOnlyField value="IndoSBERT WordPiece Tokenizer" />
               </Field>
               <Field label="Padding"
                 definition="Determines how sequences shorter than max_seq_length are padded with the special [PAD] token to create uniform-length tensors for batch processing."
@@ -752,8 +752,8 @@ export function ProcessingPage() {
                 <ReadOnlyField value="True" />
               </Field>
               <Field label="Input IDs"
-                definition="Numerical representation of each token after tokenization. Each token in the IndoBERT vocabulary has a unique integer ID."
-                formula="token → vocab_id (integer) | vocabulary size ≈ 31,943 for IndoBERT"
+                definition="Numerical representation of each token after tokenization. Each token in the IndoSBERT vocabulary has a unique integer ID."
+                formula="token → vocab_id (integer) | vocabulary size ≈ 31,943 for IndoSBERT"
                 interpretation="Auto-generated by the tokenizer. These integer IDs are looked up in the embedding table to get 768-dim dense vectors."
                 example="['[CLS]', 'berita', 'hoaks'] → [2, 4521, 8923] (example IDs). Automatically produced — no manual configuration needed.">
                 <ReadOnlyField value="Auto-generated" />
@@ -777,41 +777,41 @@ export function ProcessingPage() {
 
           {/* Group 2 */}
           <div className="pt-4">
-            <GroupTitle>Group 2 — Hidden Layer (IndoBERT Encoder + Fine-Tuning)</GroupTitle>
-            <SubSectionTitle>Architecture (Fixed — IndoBERT Base)</SubSectionTitle>
+            <GroupTitle>Group 2 — Hidden Layer (IndoSBERT Encoder + Fine-Tuning)</GroupTitle>
+            <SubSectionTitle>Architecture (Fixed — IndoSBERT Base)</SubSectionTitle>
             <div className="grid grid-cols-2 gap-x-8 gap-y-2">
               <Field label="Hidden Size"
-                definition="The dimensionality of the hidden representation at every position in the IndoBERT encoder stack. Determines the size of the token embedding vectors."
-                formula="h \u2208 \u211d^768 for IndoBERT base (fixed)"
-                interpretation="Fixed at 768 for IndoBERT base. This is the output size of each transformer encoder layer and is the input size for the classification head."
-                example="768 is standard for BERT-base. Larger models (BERT-large, IndoBERT-large) use 1024. Cannot be changed without retraining from scratch.">
+                definition="The dimensionality of the hidden representation at every position in the IndoSBERT encoder stack. Determines the size of the token embedding vectors."
+                formula="h \u2208 \u211d^768 for IndoSBERT base (fixed)"
+                interpretation="Fixed at 768 for IndoSBERT base. This is the output size of each transformer encoder layer and is the input size for the classification head."
+                example="768 is standard for BERT-base. Larger models (BERT-large, IndoSBERT-large) use 1024. Cannot be changed without retraining from scratch.">
                 <ReadOnlyField value="768" />
               </Field>
               <Field label="Num Hidden Layers"
-                definition="The number of stacked Transformer encoder layers in the IndoBERT architecture. Each layer applies multi-head self-attention followed by a feed-forward network."
+                definition="The number of stacked Transformer encoder layers in the IndoSBERT architecture. Each layer applies multi-head self-attention followed by a feed-forward network."
                 formula="output = TransformerLayer_12(...TransformerLayer_1(embeddings))"
-                interpretation="12 layers for IndoBERT base (fixed). More layers = deeper representations but more compute. The last layer's [CLS] token is used for classification."
-                example="IndoBERT base has 12 layers. Each layer refines the token representations. Layer 12's output is typically most task-specific for fine-tuning.">
+                interpretation="12 layers for IndoSBERT base (fixed). More layers = deeper representations but more compute. The last layer's [CLS] token is used for classification."
+                example="IndoSBERT base has 12 layers. Each layer refines the token representations. Layer 12's output is typically most task-specific for fine-tuning.">
                 <ReadOnlyField value="12" />
               </Field>
               <Field label="Use ReLU on Hidden Layers"
                 definition="If enabled, replaces the default GELU activation in intermediate layers with ReLU. Affects the feed-forward network inside each Transformer block."
                 formula="GELU(x) = x\u03a6(x) vs ReLU(x) = max(0, x)"
                 interpretation="GELU is the default and generally performs better for language models. ReLU may slightly speed up training but can hurt NLP performance."
-                example="Leave disabled (GELU) for best results with IndoBERT. Only enable ReLU if experimenting with speed/performance trade-offs on your specific dataset.">
+                example="Leave disabled (GELU) for best results with IndoSBERT. Only enable ReLU if experimenting with speed/performance trade-offs on your specific dataset.">
                 <Toggle value={s.use_relu_hidden} onChange={v => set("use_relu_hidden", v)} />
               </Field>
               <Field label="Num Attention Heads"
                 definition="The number of parallel attention heads in each encoder layer. Each head attends to different positional and semantic relationships independently."
                 formula="MultiHead(Q,K,V) = Concat(head_1,...,head_12)W^O, head_i = Attention(QW^Q_i, KW^K_i, VW^V_i)"
-                interpretation="Fixed at 12 for IndoBERT base. Each head specializes in different linguistic patterns (e.g., syntax, co-reference, proximity)."
-                example="IndoBERT base: 12 heads, each with 64-dim (768/12). This is the core BERT architecture and cannot be changed without full retraining.">
+                interpretation="Fixed at 12 for IndoSBERT base. Each head specializes in different linguistic patterns (e.g., syntax, co-reference, proximity)."
+                example="IndoSBERT base: 12 heads, each with 64-dim (768/12). This is the core BERT architecture and cannot be changed without full retraining.">
                 <ReadOnlyField value="12" />
               </Field>
               <Field label="Intermediate Size"
                 definition="The size of the feed-forward network hidden layer inside each Transformer block. Always 4× the hidden size for standard BERT."
                 formula="FFN(x) = max(0, xW_1 + b_1)W_2 + b_2, W_1 \u2208 \u211d^(768\u00d73072)"
-                interpretation="Fixed at 3072 for IndoBERT base (4 × 768). This bottleneck-expansion pattern is the standard BERT design and cannot be changed."
+                interpretation="Fixed at 3072 for IndoSBERT base (4 × 768). This bottleneck-expansion pattern is the standard BERT design and cannot be changed."
                 example="768 hidden → 3072 intermediate → 768 output. This FFN runs inside every encoder layer after the attention sub-layer.">
                 <ReadOnlyField value="3072" />
               </Field>
@@ -823,7 +823,7 @@ export function ProcessingPage() {
                 <ReadOnlyField value={s.use_relu_hidden ? "ReLU" : "GELU"} />
               </Field>
               <Field label="Hidden Dropout Probability"
-                definition="Dropout rate applied to hidden layer outputs after each encoder layer during training. Prevents overfitting in the IndoBERT transformer stack."
+                definition="Dropout rate applied to hidden layer outputs after each encoder layer during training. Prevents overfitting in the IndoSBERT transformer stack."
                 formula="P(hidden unit active) = 1 − hidden_dropout_prob"
                 interpretation="A value of 0.1 means 10% of hidden units are randomly zeroed per forward pass. Increasing this adds regularization to the encoder."
                 example="0.1 (default) is standard for BERT fine-tuning. Try 0.15–0.2 if you observe overfitting in the encoder layers."
@@ -960,34 +960,34 @@ export function ProcessingPage() {
               <Field label="Warmup Ratio"
                 definition="The fraction of total training steps during which the learning rate gradually increases from 0 to its target value, preventing large gradient updates at the start of training."
                 formula="warmup_steps = warmup_ratio × (epochs × steps_per_epoch)"
-                interpretation="A warmup ratio of 0.1 means the first 10% of training uses a rising learning rate. This stabilizes early training, especially for pre-trained models like IndoBERT."
+                interpretation="A warmup ratio of 0.1 means the first 10% of training uses a rising learning rate. This stabilizes early training, especially for pre-trained models like IndoSBERT."
                 example="With 100 total steps and warmup_ratio=0.1, the LR warms up for the first 10 steps, then decays. Recommended range: 0.05–0.2 for fine-tuning transformers."
                 defaultText="0.1">
                 <TextInput type="number" step="0.01" value={s.warmup_ratio} min={0.0} max={0.5}
                   onChange={v => set("warmup_ratio", Math.min(0.5, Math.max(0.0, parseFloat(v) || 0.1)))} />
               </Field>
-              <Field label="IndoBERT Hidden Dimension"
-                definition="The size of the hidden dimension for projection and adapter layers added ON TOP of IndoBERT. Does NOT alter the core pretrained architecture (fixed at 768)."
-                formula="Linear(768 → indobert_hidden_dim) → attention → classifier"
-                interpretation="Controls the capacity of custom adapter layers. Must be divisible by IndoBERT Attention Heads."
-                example="Default=768 matches IndoBERT base output. Use 512 for a lighter adapter. Always ensure: hidden_dim ÷ num_heads = integer."
+              <Field label="IndoSBERT Hidden Dimension"
+                definition="The size of the hidden dimension for projection and adapter layers added ON TOP of IndoSBERT. Does NOT alter the core pretrained architecture (fixed at 768)."
+                formula="Linear(768 → indosbert_hidden_dim) → attention → classifier"
+                interpretation="Controls the capacity of custom adapter layers. Must be divisible by IndoSBERT Attention Heads."
+                example="Default=768 matches IndoSBERT base output. Use 512 for a lighter adapter. Always ensure: hidden_dim ÷ num_heads = integer."
                 defaultText="768">
-                <TextInput type="number" value={s.indobert_hidden_dim} min={64} max={2048}
-                  onChange={v => set("indobert_hidden_dim", parseInt(v) || 768)} placeholder="e.g. 768" />
-                {validateIndoBERT(s.indobert_hidden_dim, s.indobert_num_heads) && (
-                  <p className="text-red-500 text-xs mt-1">{validateIndoBERT(s.indobert_hidden_dim, s.indobert_num_heads)}</p>
+                <TextInput type="number" value={s.indosbert_hidden_dim} min={64} max={2048}
+                  onChange={v => set("indosbert_hidden_dim", parseInt(v) || 768)} placeholder="e.g. 768" />
+                {validateIndoSBERT(s.indosbert_hidden_dim, s.indosbert_num_heads) && (
+                  <p className="text-red-500 text-xs mt-1">{validateIndoSBERT(s.indosbert_hidden_dim, s.indosbert_num_heads)}</p>
                 )}
               </Field>
-              <Field label="IndoBERT Attention Heads (Adapter Layer)"
-                definition="Number of attention heads in the custom adapter layers added on top of IndoBERT. Does NOT alter the 12 heads in the core pretrained model."
+              <Field label="IndoSBERT Attention Heads (Adapter Layer)"
+                definition="Number of attention heads in the custom adapter layers added on top of IndoSBERT. Does NOT alter the 12 heads in the core pretrained model."
                 formula="hidden_dim must be divisible by num_heads"
-                interpretation="More heads = richer representation in adapter layers. Must evenly divide IndoBERT Hidden Dimension."
-                example="Default=12 matches IndoBERT base. If hidden_dim=512, use num_heads=8 (512 ÷ 8 = 64). A validation error appears if divisibility fails."
+                interpretation="More heads = richer representation in adapter layers. Must evenly divide IndoSBERT Hidden Dimension."
+                example="Default=12 matches IndoSBERT base. If hidden_dim=512, use num_heads=8 (512 ÷ 8 = 64). A validation error appears if divisibility fails."
                 defaultText="12">
-                <TextInput type="number" value={s.indobert_num_heads} min={1} max={64}
-                  onChange={v => set("indobert_num_heads", parseInt(v) || 12)} placeholder="e.g. 12" />
-                {validateIndoBERT(s.indobert_hidden_dim, s.indobert_num_heads) && (
-                  <p className="text-red-500 text-xs mt-1">{validateIndoBERT(s.indobert_hidden_dim, s.indobert_num_heads)}</p>
+                <TextInput type="number" value={s.indosbert_num_heads} min={1} max={64}
+                  onChange={v => set("indosbert_num_heads", parseInt(v) || 12)} placeholder="e.g. 12" />
+                {validateIndoSBERT(s.indosbert_hidden_dim, s.indosbert_num_heads) && (
+                  <p className="text-red-500 text-xs mt-1">{validateIndoSBERT(s.indosbert_hidden_dim, s.indosbert_num_heads)}</p>
                 )}
               </Field>
             </div>
@@ -998,14 +998,14 @@ export function ProcessingPage() {
             <GroupTitle>Group 3 — Output Layer (Classification Head)</GroupTitle>
             <div className="grid grid-cols-2 gap-x-8 gap-y-2">
               <Field label="Classifier Input Size"
-                definition="The dimensionality of the input vector fed into the classification head. Always 768 since it takes the [CLS] token representation from the last IndoBERT encoder layer."
+                definition="The dimensionality of the input vector fed into the classification head. Always 768 since it takes the [CLS] token representation from the last IndoSBERT encoder layer."
                 formula="clf_input = last_hidden_state[:, 0, :] \u2208 \u211d^768"
-                interpretation="Fixed at 768 for IndoBERT base. This is the [CLS] token embedding from layer 12, which encodes the full sentence representation used for classification."
+                interpretation="Fixed at 768 for IndoSBERT base. This is the [CLS] token embedding from layer 12, which encodes the full sentence representation used for classification."
                 example="The [CLS] token at position 0 aggregates sentence-level information. After 12 transformer layers, it represents the full semantic context of the input text.">
                 <ReadOnlyField value="768" />
               </Field>
               <Field label="Num Labels"
-                definition="The number of output classes for the IndoBERT classification head. Fixed at 2 for binary hoax detection."
+                definition="The number of output classes for the IndoSBERT classification head. Fixed at 2 for binary hoax detection."
                 formula="P(class) = Softmax(Linear(768 \u2192 2))[class]"
                 interpretation="Binary classification: class 0 = Not Hoax (Fakta), class 1 = Hoax. The Softmax layer converts 2 logits into probabilities summing to 1."
                 example="Fixed at 2 for this hoax detection system. If extending to multi-class (e.g., satire, misinformation, rumor), this would increase accordingly.">
@@ -1047,7 +1047,7 @@ export function ProcessingPage() {
                 example="CrossEntropyLoss is the standard for multi-class classification. It internally applies log-softmax, so raw logits are passed as input.">
                 <ReadOnlyField value="CrossEntropyLoss" /></Field>
               <Field label="Dropout"
-                definition="Dropout rate applied before the final classification layer in the IndoBERT output head. Randomly zeroes outputs to prevent the classifier from memorizing training patterns."
+                definition="Dropout rate applied before the final classification layer in the IndoSBERT output head. Randomly zeroes outputs to prevent the classifier from memorizing training patterns."
                 formula="P(classifier input retained) = 1 − output_dropout"
                 interpretation="Higher dropout = stronger regularization before the final prediction. Particularly effective when the classifier head is large."
                 example="0.1 is light regularization suitable for large datasets. Use 0.3 if the model shows overfitting on the validation set's final predictions."
@@ -1067,16 +1067,16 @@ export function ProcessingPage() {
         <div className="space-y-6 animate-in fade-in">
           <div className="bg-yellow-50 border border-yellow-200 p-5 rounded-2xl">
             <Field label="Enable UMAP"
-              definition="Toggle UMAP dimensionality reduction. When enabled, IndoBERT's 768-dim embeddings are compressed to a lower-dimensional space before being fed to the GAT."
-              formula="IndoBERT(768D) \u2192 UMAP \u2192 embeddings(n_components D) \u2192 GAT"
+              definition="Toggle UMAP dimensionality reduction. When enabled, IndoSBERT's 768-dim embeddings are compressed to a lower-dimensional space before being fed to the GAT."
+              formula="IndoSBERT(768D) \u2192 UMAP \u2192 embeddings(n_components D) \u2192 GAT"
               interpretation="Enabling UMAP reduces computational cost for GAT and can improve performance by removing noise from high-dimensional embeddings. Disable only if processing raw 768-dim vectors is feasible."
-              example="Recommended to keep enabled (default). Disable only for the 'IndoBERT Only' mode or if experimenting with direct high-dimensional GAT input.">
-              <Toggle value={s.enable_umap} onChange={v => set("enable_umap", v)} disabled={s.algorithm_mode === "indobert_only"} />
+              example="Recommended to keep enabled (default). Disable only for the 'IndoSBERT Only' mode or if experimenting with direct high-dimensional GAT input.">
+              <Toggle value={s.enable_umap} onChange={v => set("enable_umap", v)} disabled={s.algorithm_mode === "indosbert_only"} />
             </Field>
-            {s.algorithm_mode === "indobert_only" && <p className="text-xs text-red-500 mt-2">UMAP is disabled globally because algorithm configuration is set to "IndoBERT Only".</p>}
+            {s.algorithm_mode === "indosbert_only" && <p className="text-xs text-red-500 mt-2">UMAP is disabled globally because algorithm configuration is set to "IndoSBERT Only".</p>}
           </div>
 
-          <div className={cn("space-y-6 transition-opacity", (!s.enable_umap || s.algorithm_mode === "indobert_only") && "opacity-40 pointer-events-none")}>
+          <div className={cn("space-y-6 transition-opacity", (!s.enable_umap || s.algorithm_mode === "indosbert_only") && "opacity-40 pointer-events-none")}>
             <div>
               <SubSectionTitle>Dimensionality Reduction</SubSectionTitle>
               <div className="grid grid-cols-2 gap-x-8 gap-y-2">
@@ -1105,7 +1105,7 @@ export function ProcessingPage() {
                   definition="Distance function used to measure similarity between data points during UMAP graph construction."
                   formula="cosine: sim(u,v) = (u·v)/(||u||·||v||)"
                   interpretation="Cosine is recommended for text embeddings (angular similarity, magnitude-independent). Euclidean works better for normalized numerical data."
-                  example="Use 'cosine' for IndoBERT text embeddings (standard). Use 'euclidean' for non-text numerical features.">
+                  example="Use 'cosine' for IndoSBERT text embeddings (standard). Use 'euclidean' for non-text numerical features.">
                   <SelectInput value={s.metric} onChange={v => set("metric", v)} options={["cosine", "euclidean", "manhattan", "correlation"]} />
                 </Field>
                 <Field label="Min Distance (min_dist)"
@@ -1153,7 +1153,7 @@ export function ProcessingPage() {
               definition="Toggle the Graph Attention Network component. When enabled, text embeddings are organized as a graph and processed through GAT layers for relational reasoning."
               formula="Embeddings \u2192 KNN Graph \u2192 GATLayer_1 \u2192 ... \u2192 GATLayer_N \u2192 Classifier"
               interpretation="GAT is only available in Hybrid mode. Enabling it allows the model to learn from relationships between similar news articles (graph-level patterns)."
-              example="Keep enabled for Hybrid mode. GAT typically improves accuracy by 2–5% over IndoBERT-only by leveraging inter-document relationships in the graph.">
+              example="Keep enabled for Hybrid mode. GAT typically improves accuracy by 2–5% over IndoSBERT-only by leveraging inter-document relationships in the graph.">
               <Toggle value={s.enable_gat} onChange={v => set("enable_gat", v)} disabled={s.algorithm_mode !== "hybrid"} />
             </Field>
             {s.algorithm_mode !== "hybrid" && <p className="text-xs text-red-500 mt-2">GAT is disabled globally because algorithm configuration is not set to Hybrid.</p>}
@@ -1165,11 +1165,11 @@ export function ProcessingPage() {
               <SubSectionTitle>Graph & Input Representation</SubSectionTitle>
               <div className="grid grid-cols-2 gap-x-8 gap-y-2">
                 <Field label="Node Features"
-                  definition="The dimensionality of the feature vector representing each node in the graph. Each node corresponds to one text sample, and its features are the UMAP-reduced IndoBERT embeddings."
+                  definition="The dimensionality of the feature vector representing each node in the graph. Each node corresponds to one text sample, and its features are the UMAP-reduced IndoSBERT embeddings."
                   formula="x_i \u2208 \u211d^n_components (or \u211d^768 if UMAP disabled)"
                   interpretation="Node features encode the semantic content of each news article. The GAT layers learn to propagate and aggregate this information across connected nodes."
-                  example="With UMAP enabled (n_components=64), each node is a 64-dim vector. With UMAP disabled, each node is 768-dim (full IndoBERT embedding).">
-                  <ReadOnlyField value="768 (IndoBERT base output dimension)" />
+                  example="With UMAP enabled (n_components=64), each node is a 64-dim vector. With UMAP disabled, each node is 768-dim (full IndoSBERT embedding).">
+                  <ReadOnlyField value="768 (IndoSBERT base output dimension)" />
                 </Field>
                 <Field label="Edge Index Format"
                   definition="The data format used to represent graph edges. COO (Coordinate Format) stores edges as two arrays: one for source nodes and one for destination nodes."
@@ -1271,7 +1271,7 @@ export function ProcessingPage() {
                   <SelectInput value={s.gat_dropout} onChange={v => set("gat_dropout", parseFloat(v))} options={[0.0, 0.1, 0.2, 0.3, 0.4, 0.5]} />
                 </Field>
                 <Field label="Learning Rate (GAT)"
-                  definition="Controls how large a step the GAT optimizer takes when adjusting model weights. Kept separate from IndoBERT's LR because GAT is trained from scratch."
+                  definition="Controls how large a step the GAT optimizer takes when adjusting model weights. Kept separate from IndoSBERT's LR because GAT is trained from scratch."
                   formula="θ_{t+1} = θ_t − lr_gat × ∇L(θ_t)"
                   interpretation="Too high = unstable training (loss oscillates). Too low = slow convergence. GAT typically needs higher LR than fine-tuned transformers."
                   example="1e-3 is standard for training graph networks from scratch. Use a lower value (1e-4) if the training loss oscillates."
@@ -1401,7 +1401,7 @@ export function ProcessingPage() {
         <div className="p-3 bg-indigo-100 text-indigo-600 rounded-xl"><Cpu className="w-8 h-8" /></div>
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Processing Pipeline</h2>
-          <p className="text-slate-500 mt-1">Configure and train the advanced IndoBERT + UMAP + GAT architecture.</p>
+          <p className="text-slate-500 mt-1">Configure and train the advanced IndoSBERT + UMAP + GAT architecture.</p>
         </div>
       </div>
 

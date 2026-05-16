@@ -35,7 +35,7 @@ import json, os, uuid, copy, io, tempfile
 import numpy as np
 import torch
 
-from ml_core.indobert_umap import get_indobert, UMAPReducer
+from ml_core.indosbert_umap import get_indosbert, UMAPReducer
 from ml_core.training_engine import train_model, construct_graph, MODELS_DIR
 from ml_core.gat_network import ContentGraphGAT
 from ml_core.preprocessing_utils import preprocess_text, get_stats
@@ -237,9 +237,9 @@ def background_train_task(job_id: str, dataset_id: int, settings: dict):
         num_classes = len(unique_vals)
         training_jobs[job_id]["label_map"] = {str(i): str(v) for i, v in enumerate(unique_vals)}
 
-        # -- IndoBERT Embedding ----------------------------------------
+        # -- IndoSIndoSBERT Sentence Embedding ----------------------------------------
         training_jobs[job_id]["status"] = "extracting_features"
-        model_name   = settings.get("indo_model_name", "indobenchmark/indobert-base-p2")
+        model_name   = settings.get("indosbert_model_name", "firqaaa/indo-sentence-bert-base")
         max_seq_len  = settings.get("max_seq_length", 128)
         batch_size   = settings.get("indo_batch_size", 16)
 
@@ -248,12 +248,12 @@ def background_train_task(job_id: str, dataset_id: int, settings: dict):
         from ml_core.training_engine import set_global_seed
         set_global_seed(random_seed)
 
-        extractor    = get_indobert(model_name)
+        extractor    = get_indosbert(model_name)
         embeddings   = extractor.get_embeddings(texts, batch_size=batch_size, max_length=max_seq_len)
 
         # -- UMAP -----------------------------------------------------
         algo_mode = settings.get("algorithm_mode", "hybrid")
-        use_umap  = settings.get("use_umap", True) and algo_mode != "indobert_only"
+        use_umap  = settings.get("use_umap", True) and algo_mode != "indosbert_only"
 
         if use_umap:
             training_jobs[job_id]["status"] = "reducing_dimensions"
@@ -283,7 +283,7 @@ def background_train_task(job_id: str, dataset_id: int, settings: dict):
                 umap_reducer=reducer if use_umap else None,
             )
         else:
-            # IndoBERT-only or IndoBERT+UMAP — simple logistic evaluation
+            # IndoSBERT-only or IndoSBERT+UMAP — simple logistic evaluation
             training_jobs[job_id]["status"] = "training_gnn"
             from sklearn.linear_model import LogisticRegression
             from sklearn.model_selection import cross_val_predict
@@ -452,7 +452,7 @@ def run_split_trial(req: SplitTrialRequest):
     Lightweight split-ratio trial simulation.
     Returns mock evaluation metrics per ratio so the UI can display
     a comparison table and pick the best ratio automatically.
-    For a real trial, this would swap in actual IndoBERT fine-tuning.
+    For a real trial, this would swap in actual IndoSBERT fine-tuning.
     """
     import random, math
     random.seed(42)
@@ -534,10 +534,10 @@ def _load_model_and_predict(texts: list, model_record, db) -> list:
     gat_model.eval()
 
     settings   = checkpoint.get("settings", {})
-    model_name = settings.get("indo_model_name", "indobenchmark/indobert-base-p2")
+    model_name = settings.get("indosbert_model_name", "firqaaa/indo-sentence-bert-base")
     max_len    = settings.get("max_seq_length", 128)
     batch_sz   = settings.get("indo_batch_size", 16)
-    extractor  = get_indobert(model_name)
+    extractor  = get_indosbert(model_name)
     embeddings = extractor.get_embeddings(texts, batch_size=batch_sz, max_length=max_len)
     emb_np     = np.array(embeddings, dtype=np.float32)
 
@@ -620,6 +620,49 @@ def predict_text(req: schemas.PredictTextRequest, db: Session = Depends(get_db))
     except Exception as e:
         import traceback; traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Prediction failed: {e}")
+
+
+@router.post("/predict-text/explain")
+def predict_text_explain(req: schemas.PredictTextRequest, db: Session = Depends(get_db)):
+    if req.model_id:
+        record = db.query(models.ModelTrainingResult).filter(models.ModelTrainingResult.id == req.model_id).first()
+    else:
+        record = db.query(models.ModelTrainingResult).filter(
+            models.ModelTrainingResult.best_model_path != None
+        ).order_by(models.ModelTrainingResult.timestamp.desc()).first()
+
+    if not record:
+        raise HTTPException(status_code=404, detail="No trained model found.")
+
+    try:
+        from lime.lime_text import LimeTextExplainer
+        import numpy as np
+
+        def predict_proba_wrapper(texts_list):
+            results = _load_model_and_predict(texts_list, record, db)
+            probs = [res["probabilities"] for res in results]
+            return np.array(probs)
+
+        # LIME expects classes: 0 -> Fakta, 1 -> Hoaks
+        explainer = LimeTextExplainer(class_names=["Fakta", "Hoaks"])
+        
+        # We'll use 50 samples for speed. We can adjust if needed.
+        exp = explainer.explain_instance(
+            req.text, 
+            predict_proba_wrapper, 
+            num_features=15, 
+            num_samples=50
+        )
+        
+        # as_list returns [('word', weight), ...]
+        return {
+            "model_name": record.model_name,
+            "explanation": exp.as_list(),
+            "text": req.text
+        }
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Explanation failed: {e}")
 
 
 # -----------------------------------------------------------------------------
@@ -910,18 +953,18 @@ def export_training_excel(result_id: int, db: Session = Depends(get_db)):
 
     PARAM_DESCRIPTIONS = {
         "model_name":          "Name of the trained model",
-        "algorithm_mode":      "Pipeline mode: hybrid | indobert_umap | indobert_only",
-        "max_seq_length":      "Maximum token sequence length for IndoBERT",
-        "indo_learning_rate":  "Learning rate for IndoBERT fine-tuning",
-        "indo_batch_size":     "Batch size for IndoBERT embedding extraction",
-        "indo_epoch":          "Number of epochs for IndoBERT",
+        "algorithm_mode":      "Pipeline mode: hybrid | indosbert_umap | indosbert_only",
+        "max_seq_length":      "Maximum token sequence length for IndoSBERT",
+        "indo_learning_rate":  "Learning rate for IndoSBERT fine-tuning",
+        "indo_batch_size":     "Batch size for IndoSBERT embedding extraction",
+        "indo_epoch":          "Number of epochs for IndoSBERT",
         "indo_fold":           "Number of Stratified K-Fold cross-validation folds",
         "weight_decay":        "L2 regularization weight decay coefficient",
         "warmup_ratio":        "Fraction of training steps used for LR warmup",
         "dropout_rate":        "Dropout rate applied to classifier head",
         "random_seed":         "Global random seed for reproducibility",
-        "indobert_hidden_dim": "Hidden dimension for custom IndoBERT adapter layers",
-        "indobert_num_heads":  "Attention heads for custom IndoBERT adapter layers",
+        "indosbert_hidden_dim": "Hidden dimension for custom IndoSBERT adapter layers",
+        "indosbert_num_heads":  "Attention heads for custom IndoSBERT adapter layers",
         "early_stop_patience": "Epochs without improvement before early stopping",
         "use_umap":            "Whether UMAP dimensionality reduction is enabled",
         "umap_n_components":   "Output dimensions of UMAP reduction",

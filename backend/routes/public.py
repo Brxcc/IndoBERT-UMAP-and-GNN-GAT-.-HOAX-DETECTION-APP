@@ -15,7 +15,8 @@ def predict_hoax(request: schemas.SearchRequest, db: Session = Depends(get_db)):
     # Extract text from URL using BeautifulSoup if it's a URL
     if request.is_url:
         try:
-            res = requests.get(request.text, timeout=10)
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+            res = requests.get(request.text, headers=headers, timeout=15)
             res.raise_for_status()
             soup = BeautifulSoup(res.content, 'html.parser')
             # Extract paragraphs
@@ -23,17 +24,35 @@ def predict_hoax(request: schemas.SearchRequest, db: Session = Depends(get_db)):
             extracted = " ".join([p.get_text() for p in paragraphs])
             if not extracted.strip():
                 raise HTTPException(status_code=400, detail="No text could be extracted from this URL.")
-            text_to_process = extracted[:1000] # Limiting size for DB & ML
+            text_to_process = extracted[:2000] # Limiting size for DB & ML
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to process URL: {str(e)}")
             
     # --- Integration Point: ML Core ---
-    # In a fully deployed mode, we'd load the PyTorch geometric model and run inference with padding.
-    # For MVP simulation since GAT requires graph nodes context to predict single node:
-    # Here we simulate but provide credible metrics.
-    is_hoax = random.random() > 0.5
-    prob = round(random.uniform(0.75, 0.99) if is_hoax else random.uniform(0.01, 0.25), 2)
-    label = "Hoax" if is_hoax else "Fact"
+    try:
+        from routes.admin_pipeline import _load_model_and_predict
+        
+        # Get the best trained model
+        record = db.query(models.ModelTrainingResult).filter(
+            models.ModelTrainingResult.best_model_path != None
+        ).order_by(models.ModelTrainingResult.timestamp.desc()).first()
+
+        if not record:
+            raise HTTPException(status_code=404, detail="Sistem belum memiliki model AI yang dilatih.")
+
+        preds = _load_model_and_predict([text_to_process], record, db)
+        p = preds[0]
+        
+        # p["predicted_label"] is typically "Hoaks" or "Fakta" (or "Hoax" / "Non-Hoax")
+        is_hoax = p["predicted_label"].lower() in ["hoaks", "hoax"]
+        label = "Hoax" if is_hoax else "Non-Hoax"
+        prob = p["confidence"] / 100.0 # Convert percentage to 0-1 scale
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
     
     # Save History
     db_history = models.SearchHistory(

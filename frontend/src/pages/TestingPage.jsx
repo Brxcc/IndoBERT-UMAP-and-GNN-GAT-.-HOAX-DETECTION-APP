@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import {
   FlaskConical, Send, Loader2, CheckCircle2, XCircle, Info, X,
-  ChevronDown, Upload, FileText, Download, Trash2, BarChart2, ArrowRight, Eye
+  ChevronDown, Upload, FileText, Download, Trash2, BarChart2, ArrowRight, Eye, Search
 } from "lucide-react";
 import { cn } from "../lib/utils";
 
@@ -157,6 +157,8 @@ export function TestingPage() {
   const [selModel,setSelModel]= useState("");
   const [history, setHistory] = useState([]);
   const [viewDetail, setViewDetail] = useState(null);
+  const [explainLoading, setExplainLoading] = useState(false);
+  const [explanation, setExplanation] = useState(null);
   const fileRef = useRef();
 
   useEffect(() => {
@@ -172,7 +174,7 @@ export function TestingPage() {
   // ── Single text prediction ──────────────────────────────────────────────────
   const predictText = async () => {
     if (!text.trim()) return;
-    setLoading(true); setError(""); setResult(null);
+    setLoading(true); setError(""); setResult(null); setExplanation(null);
     try {
       const body = { text: text.trim() };
       if (selModel) body.model_id = parseInt(selModel);
@@ -185,6 +187,26 @@ export function TestingPage() {
       else { setResult(data); loadHistory(); }
     } catch (e) { setError(`Failed: ${e.message}`); }
     finally { setLoading(false); }
+  };
+
+  // ── LIME Explainability ─────────────────────────────────────────────────────
+  const explainPrediction = async () => {
+    setExplainLoading(true);
+    try {
+      const body = { text: text.trim() };
+      if (selModel) body.model_id = parseInt(selModel);
+      const res = await fetch(`${API}/predict-text/explain`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Explanation failed");
+      setExplanation(data.explanation);
+    } catch (e) {
+      alert(`LIME Error: ${e.message}`);
+    } finally {
+      setExplainLoading(false);
+    }
   };
 
   // ── Bulk file prediction ────────────────────────────────────────────────────
@@ -353,6 +375,74 @@ export function TestingPage() {
             <span className="text-slate-300">|</span>
             <span>Accuracy: <strong className="text-slate-700">{(result.model_accuracy*100).toFixed(1)}%</strong></span>
           </div>
+        </div>
+      )}
+
+      {/* LIME Explainability */}
+      {result && mode === "text" && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 animate-in fade-in">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <Eye className="w-5 h-5 text-indigo-500"/> Explainability (LIME)
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                See which words contributed to the prediction.
+              </p>
+            </div>
+            {!explanation && (
+              <button onClick={explainPrediction} disabled={explainLoading}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-sm font-semibold transition">
+                {explainLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : <Search className="w-4 h-4"/>}
+                {explainLoading ? "Generating..." : "Generate Explanation"}
+              </button>
+            )}
+          </div>
+
+          {explanation && (
+            <div className="space-y-4">
+              <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm leading-relaxed text-slate-700">
+                {text.split(/(\s+)/).map((word, i) => {
+                  const wRaw = word.toLowerCase().trim();
+                  if (!wRaw) return <span key={i}>{word}</span>;
+                  const found = explanation.find(x => x[0].toLowerCase() === wRaw);
+                  if (!found) return <span key={i}>{word}</span>;
+                  const weight = found[1];
+                  const intensity = Math.min(Math.abs(weight) * 5, 1);
+                  const isHoax = weight > 0;
+                  return (
+                    <span key={i} title={`Weight: ${weight.toFixed(4)}`}
+                      style={{
+                        backgroundColor: isHoax ? `rgba(239,68,68,${intensity})` : `rgba(34,197,94,${intensity})`,
+                        color: intensity > 0.5 ? 'white' : 'inherit',
+                        padding: '0 2px', borderRadius: '4px'
+                      }}
+                      className="font-medium cursor-help transition-colors"
+                    >
+                      {word}
+                    </span>
+                  );
+                })}
+              </div>
+              <div className="flex gap-4 text-xs font-semibold">
+                <span className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-red-400"></div> Indicates Hoax</span>
+                <span className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-green-400"></div> Indicates Non-Hoax</span>
+              </div>
+              
+              <div className="mt-4">
+                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Top Features Weight</p>
+                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                   {explanation.map((item, i) => (
+                     <div key={i} className={cn("px-3 py-2 rounded-lg text-xs font-semibold flex justify-between border", 
+                       item[1] > 0 ? "bg-red-50 border-red-100 text-red-700" : "bg-green-50 border-green-100 text-green-700")}>
+                       <span className="truncate mr-2">{item[0]}</span>
+                       <span>{item[1] > 0 ? "+" : ""}{item[1].toFixed(3)}</span>
+                     </div>
+                   ))}
+                 </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

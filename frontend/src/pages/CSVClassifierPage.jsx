@@ -12,7 +12,7 @@ export function CSVClassifierPage() {
 
   const steps = [
     "Text Preprocessing",
-    "Embedding with IndoBERT",
+    "Embedding with IndoSBERT",
     "Graph Construction (Similarity)",
     "Hybrid Fusion & Inference",
   ];

@@ -53,11 +53,11 @@ class TrainingSettings(BaseModel):
     model_name: str = "New Model"
 
     # ── Algorithm Mode ────────────────────────────────────────────────
-    # "indobert_only" | "indobert_umap" | "hybrid" (IndoBERT+UMAP+GAT)
+    # "indosbert_only" | "indosbert_umap" | "hybrid" (IndoSBERT+UMAP+GAT)
     algorithm_mode: str = "hybrid"
 
-    # ── IndoBERT Parameters ───────────────────────────────────────────
-    indo_model_name: str = "indobenchmark/indobert-base-p2"
+    # ── IndoSBERT Parameters ───────────────────────────────────────────
+    indosbert_model_name: str = "firqaaa/indo-sentence-bert-base"
     max_seq_length: int = 128
     indo_learning_rate: float = 2e-5
     indo_epochs: int = 5               # Fine-tuning epochs
@@ -72,8 +72,8 @@ class TrainingSettings(BaseModel):
     # ── NEW: Anti-Overfitting & Reproducibility Parameters ────────────
     dropout_rate: float = 0.1          # classifier head dropout rate
     random_seed: int = 42              # global random seed for reproducibility
-    indobert_hidden_dim: int = 768     # custom hidden dim for projection layers
-    indobert_num_heads: int = 12       # custom attention heads for adapter layers
+    indosbert_hidden_dim: int = 768     # custom hidden dim for projection layers
+    indosbert_num_heads: int = 12       # custom attention heads for adapter layers
 
     # ── UMAP Parameters ───────────────────────────────────────────────
     use_umap: bool = True

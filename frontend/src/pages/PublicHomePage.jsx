@@ -55,6 +55,15 @@ export function PublicHomePage() {
     e.preventDefault();
     if (!inputText.trim()) return;
 
+    if (isUrl) {
+      try {
+        new URL(inputText);
+      } catch (_) {
+        alert("Link tidak valid. Harap masukkan URL yang valid dengan format http:// atau https://");
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}/predict`, {
@@ -136,7 +145,7 @@ export function PublicHomePage() {
         <div className="text-center space-y-4">
           <h2 className="text-4xl font-extrabold text-slate-800 tracking-tight">Hoax Detection App</h2>
           <p className="text-lg text-slate-500 max-w-2xl mx-auto">
-            Insert news text or a news URL to verify its authenticity using Machine Learning IndoBERT and Graph Neural Network.
+            Insert news text or a news URL to verify its authenticity using Machine Learning IndoSBERT and Graph Neural Network.
           </p>
         </div>
 

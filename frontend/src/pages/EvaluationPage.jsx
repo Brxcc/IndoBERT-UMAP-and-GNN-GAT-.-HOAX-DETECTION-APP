@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
     Activity, Database, Info, X, Target, RefreshCcw,
     Trash2, ChevronDown, ChevronUp, Download, Eye, CheckCircle2, Loader2, Pencil, Check
@@ -90,8 +91,8 @@ const METRIC_DEFS = {
 function MetricModal({ metricKey, onClose }) {
     const d = METRIC_DEFS[metricKey];
     if (!d) return null;
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+    return createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
             <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4 border border-slate-100" onClick={e => e.stopPropagation()}>
                 <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-2">
@@ -114,7 +115,8 @@ function MetricModal({ metricKey, onClose }) {
                 </div>
                 <button onClick={onClose} className="mt-4 w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition">Close</button>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }
 
@@ -563,8 +565,8 @@ const CM_DEF = {
 
 function ConfusionMatrixInfoModal({ onClose }) {
   const d = CM_DEF;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4 border border-slate-100" onClick={e => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -587,7 +589,8 @@ function ConfusionMatrixInfoModal({ onClose }) {
         </div>
         <button onClick={onClose} className="mt-4 w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition">Close</button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -832,7 +835,7 @@ export function EvaluationPage() {
                     <div className="p-3 bg-blue-100 text-blue-600 rounded-xl"><Activity className="w-8 h-8" /></div>
                     <div>
                         <h2 className="text-2xl font-bold text-slate-800">Evaluation Board</h2>
-                        <p className="text-slate-500 mt-1">Performance metrics — Hybrid IndoBERT + UMAP + GAT.</p>
+                        <p className="text-slate-500 mt-1">Performance metrics — Hybrid IndoSBERT + UMAP + GAT.</p>
                     </div>
                 </div>
                 <button onClick={fetchAll} className="text-xs text-slate-500 hover:text-slate-700 border border-slate-200 rounded-xl px-3 py-2 flex items-center gap-1 transition">

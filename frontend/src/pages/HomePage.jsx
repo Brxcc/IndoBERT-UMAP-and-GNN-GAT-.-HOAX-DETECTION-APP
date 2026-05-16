@@ -4,8 +4,8 @@ import { ShieldCheck, Zap, Database, Search } from "lucide-react";
 export function HomePage() {
   const features = [
     {
-      title: "Hybrid IndoBERT",
-      description: "State-of-the-art IndoBERT text representation for deeply extracting the local context features of Indonesian news.",
+      title: "Hybrid IndoSBERT",
+      description: "State-of-the-art IndoSBERT text representation for deeply extracting the local context features of Indonesian news.",
       icon: Zap,
     },
     {
@@ -36,7 +36,7 @@ export function HomePage() {
             Hybrid Hoax News <br/> Classification System
           </h1>
           <p className="text-lg text-blue-100 max-w-2xl">
-            A smart solution for verifying news authenticity through a combined approach of IndoBERT + Graph Neural Network capable of analyzing semantics and propagation mechanisms simultaneously.
+            A smart solution for verifying news authenticity through a combined approach of IndoSBERT + Graph Neural Network capable of analyzing semantics and propagation mechanisms simultaneously.
           </p>
         </div>
         <div className="absolute top-0 right-0 p-8 opacity-10">
